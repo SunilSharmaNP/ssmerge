@@ -1,20 +1,49 @@
-FROM ubuntu:latest
+FROM python:3.11-slim
 
-WORKDIR /usr/src/mergebot
-RUN chmod 777 /usr/src/mergebot
+# Set environment variables for better performance and security
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN apt-get -y update && apt-get -y upgrade && apt-get install apt-utils -y && \
-    apt-get install -y python3 python3-pip git \
-    p7zip-full p7zip-rar xz-utils wget curl pv jq \
-    ffmpeg unzip neofetch mediainfo
+# Set working directory
+WORKDIR /app
 
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    mediainfo \
+    curl \
+    wget \
+    git \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Optional: Install rclone (uncomment if Google Drive upload needed)
 # RUN curl https://rclone.org/install.sh | bash
 
+# Copy requirements first for better Docker layer caching
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
 
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
 COPY . .
 
-RUN chmod +x start.sh
+# Create necessary directories
+RUN mkdir -p downloads logs
 
-CMD ["bash","start.sh"]
+# Set proper permissions
+RUN chmod +x start.sh
+RUN chmod -R 755 /app
+
+# Health check endpoint for monitoring
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python3 -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
+
+# Expose port for health check
+EXPOSE 8080
+
+# Run the bot
+CMD ["./start.sh"]
