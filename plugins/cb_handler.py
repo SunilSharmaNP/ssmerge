@@ -1,14 +1,12 @@
 import asyncio
 import os
-from pyrogram import filters
+from pyrogram import filters, Client
 from pyrogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
 )
-from pyromod.types import ListenerTypes
-from pyromod.listen import Client
 
 from helpers import database
 from helpers.utils import UserSettings, get_readable_file_size, get_readable_time
@@ -114,7 +112,10 @@ Use **GoFile** for larger files"""
 
         # GoFile upload option
         elif data == "to_gofile":
-            if not Config.GOFILE_TOKEN:
+            # Check if GoFile is available
+            gofile_available = hasattr(Config, 'GOFILE_TOKEN') and Config.GOFILE_TOKEN
+            
+            if not gofile_available:
                 await cb.answer(
                     "❌ GoFile service is not configured!\n"
                     "Please contact admin to enable unlimited uploads.",
@@ -206,44 +207,19 @@ Use **GoFile** for larger files"""
                     "✍️ **Custom Filename**\n\n"
                     f"**Current:** `[@{Config.OWNER_USERNAME}]_merged.mkv`\n\n"
                     "**Instructions:**\n"
-                    "• Send your desired filename\n"
+                    "• Send your desired filename in next message\n"
                     "• Don't include file extension\n"
                     "• Use only valid characters\n"
-                    "• You have 2 minutes\n\n"
-                    "**Example:** `My Awesome Video`"
+                    "• Example: `My Awesome Video`\n\n"
+                    "**⏰ You have 2 minutes to respond**",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
+                    ])
                 )
                 
-                try:
-                    # Listen for user response
-                    response: Message = await c.listen(
-                        chat_id=cb.message.chat.id,
-                        filters=filters.text,
-                        listener_type=ListenerTypes.MESSAGE,
-                        timeout=120,
-                        user_id=cb.from_user.id
-                    )
-                    
-                    if response and response.text:
-                        # Clean filename
-                        custom_name = response.text.strip()
-                        # Remove invalid characters
-                        custom_name = "".join(c for c in custom_name if c.isalnum() or c in (' ', '-', '_', '.'))
-                        
-                        new_file_name = f"downloads/{user_id}/{custom_name}.mkv"
-                        await response.delete(True)
-                        
-                        # Start merging process
-                        await start_merge_process(c, cb, user, new_file_name)
-                        
-                except asyncio.TimeoutError:
-                    await cb.message.edit_text(
-                        "⏰ **Timeout!**\n\n"
-                        "Using default filename instead.",
-                        reply_markup=InlineKeyboardMarkup([
-                            [InlineKeyboardButton("🔄 Try Again", callback_data="rename_YES")]
-                        ])
-                    )
-                    
+                # Store user state for filename input
+                formatDB[user_id] = "waiting_for_filename"
+                
             elif "NO" in data:
                 # Use default filename
                 new_file_name = f"downloads/{user_id}/[@{Config.OWNER_USERNAME}]_merged.mkv"
@@ -347,7 +323,51 @@ Use **GoFile** for larger files"""
         except:
             pass
 
-async def start_merge_process(c: Client, cb: CallbackQuery, user: UserSettings, new_file_name: str):
+# Handle text messages for custom filename input
+@Client.on_message(filters.text & filters.private)
+async def handle_text_messages(c: Client, m: Message):
+    """Handle text messages including custom filename input"""
+    try:
+        user_id = m.from_user.id
+        
+        # Check if user is waiting for filename input
+        if formatDB.get(user_id) == "waiting_for_filename":
+            # Clean filename
+            custom_name = m.text.strip()
+            # Remove invalid characters
+            custom_name = "".join(c for c in custom_name if c.isalnum() or c in (' ', '-', '_', '.'))
+            
+            if len(custom_name) > 100:
+                custom_name = custom_name[:100]
+            
+            new_file_name = f"downloads/{user_id}/{custom_name}.mkv"
+            
+            # Clear state
+            formatDB[user_id] = None
+            
+            # Delete user message
+            await m.delete(True)
+            
+            # Start merging process
+            user = UserSettings(user_id, m.from_user.first_name)
+            
+            # Create a fake callback query for consistency
+            class FakeCallbackQuery:
+                def __init__(self, message, from_user):
+                    self.message = message
+                    self.from_user = from_user
+            
+            # Find the last bot message to user
+            async for msg in c.get_chat_history(user_id, limit=10):
+                if msg.from_user and msg.from_user.id == (await c.get_me()).id:
+                    fake_cb = FakeCallbackQuery(msg, m.from_user)
+                    await start_merge_process(c, fake_cb, user, new_file_name)
+                    break
+        
+    except Exception as e:
+        LOGGER.error(f"❌ Text message handler error: {e}")
+
+async def start_merge_process(c: Client, cb, user: UserSettings, new_file_name: str):
     """Start the professional merge process"""
     try:
         await cb.message.edit_text("🔄 **Starting Professional Merge Process...**\n\nPlease wait...")
@@ -533,20 +553,27 @@ async def show_start_menu(c: Client, cb: CallbackQuery):
 
 async def show_bot_stats(cb: CallbackQuery):
     """Show bot statistics"""
-    import psutil
-    import shutil
-    
-    # Calculate stats
-    uptime = get_readable_time(time.time() - bot_start_time)
-    total, used, free = shutil.disk_usage(".")
-    cpu_usage = psutil.cpu_percent(interval=0.5)
-    memory_usage = psutil.virtual_memory().percent
-    
-    stats_text = f"""📊 **Professional Bot Statistics**
+    try:
+        import psutil
+        import shutil
+        import time
+        
+        # Calculate stats
+        try:
+            from bot import botStartTime
+            uptime = get_readable_time(time.time() - botStartTime)
+        except:
+            uptime = "Unknown"
+        
+        total, used, free = shutil.disk_usage(".")
+        cpu_usage = psutil.cpu_percent(interval=0.5)
+        memory_usage = psutil.virtual_memory().percent
+        
+        stats_text = f"""📊 **Professional Bot Statistics**
 
 ⏰ **Uptime:** `{uptime}`
 👥 **Active Users:** `{len(queueDB)}`
-🔄 **Active Processes:** `{len([p for p in user_processes.values() if p])}`
+🔄 **Active Processes:** `{len(formatDB)}`
 
 💾 **Storage:**
 ├─ **Total:** `{get_readable_file_size(total)}`
@@ -559,16 +586,20 @@ async def show_bot_stats(cb: CallbackQuery):
 └─ **Status:** {"🟢 Healthy" if cpu_usage < 80 else "🟡 High Load"}
 
 🚀 **Features:**
-├─ **GoFile:** {"✅ Active" if Config.GOFILE_TOKEN else "❌ Inactive"}
+├─ **GoFile:** {"✅ Active" if hasattr(Config, 'GOFILE_TOKEN') and Config.GOFILE_TOKEN else "❌ Inactive"}
 ├─ **Premium:** {"✅ Active" if Config.IS_PREMIUM else "❌ Inactive"}
 └─ **Version:** Professional v6.0"""
 
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔄 Refresh Stats", callback_data="bot_stats")],
-        [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
-    ])
-    
-    await cb.message.edit_text(stats_text, reply_markup=keyboard)
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔄 Refresh Stats", callback_data="bot_stats")],
+            [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+        ])
+        
+        await cb.message.edit_text(stats_text, reply_markup=keyboard)
+        
+    except Exception as e:
+        LOGGER.error(f"❌ Stats error: {e}")
+        await cb.answer("❌ Error loading stats", show_alert=True)
 
 async def handle_cancel_operation(cb: CallbackQuery, user_id: int):
     """Handle cancel operation with proper cleanup"""
@@ -609,12 +640,27 @@ async def handle_cancel_operation(cb: CallbackQuery, user_id: int):
         LOGGER.error(f"❌ Cancel handler error: {e}")
         await cb.answer("❌ Error during cancellation", show_alert=True)
 
-# Import bot_start_time and user_processes
-try:
-    from bot import bot_start_time, user_processes
-except:
-    import time
-    bot_start_time = time.time()
-    user_processes = {}
+# Placeholder functions for missing handlers
+async def show_file_details(c, cb, data):
+    await cb.answer("🚧 File details feature coming soon!", show_alert=True)
 
-# Additional helper functions would continue here...
+async def handle_add_subtitle(c, cb, data):
+    await cb.answer("🚧 Subtitle addition feature coming soon!", show_alert=True)
+
+async def handle_remove_subtitle(cb, data):
+    await cb.answer("🚧 Subtitle removal feature coming soon!", show_alert=True)
+
+async def handle_remove_file(c, cb, data):
+    await cb.answer("🚧 File removal feature coming soon!", show_alert=True)
+
+async def handle_mode_change(cb, data):
+    await cb.answer("🚧 Mode change feature coming soon!", show_alert=True)
+
+async def handle_toggle_edit(cb, data):
+    await cb.answer("🚧 Toggle edit feature coming soon!", show_alert=True)
+
+async def handle_extract_streams(c, cb, data):
+    await cb.answer("🚧 Stream extraction feature coming soon!", show_alert=True)
+
+async def handle_gofile_cancel(c, cb, data):
+    await cb.answer("🚧 GoFile cancel feature coming soon!", show_alert=True)
