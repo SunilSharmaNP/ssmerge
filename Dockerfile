@@ -1,49 +1,50 @@
+# Complete Working MERGE-BOT with ALL Dependencies
 FROM python:3.11-slim
 
-# Set environment variables for better performance and security
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PIP_NO_CACHE_DIR=1
-ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+# Install system dependencies including ffmpeg
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    wget \
+    curl \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    mediainfo \
-    curl \
-    wget \
-    git \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-
-# Optional: Install rclone (uncomment if Google Drive upload needed)
-# RUN curl https://rclone.org/install.sh | bash
-
 # Copy requirements first for better Docker layer caching
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies with better error handling
+RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip3 install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p downloads logs
+RUN mkdir -p downloads logs userdata
 
-# Set proper permissions
-RUN chmod +x start.sh
-RUN chmod -R 755 /app
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV TZ=Asia/Kolkata
 
-# Health check endpoint for monitoring
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python3 -c "import sys; import pyrogram; import ffmpeg; sys.exit(0)" || exit 1
 
-# Expose port for health check
-EXPOSE 8080
+# Create enhanced startup script
+RUN echo '#!/bin/bash' > /app/start.sh && \
+    echo 'echo "[$(date "+%Y-%m-%d %H:%M:%S")] 🚀 Starting Professional MERGE-BOT..."' >> /app/start.sh && \
+    echo 'echo "[$(date "+%Y-%m-%d %H:%M:%S")] 📊 Python version: $(python3 --version | cut -d" " -f2)"' >> /app/start.sh && \
+    echo 'echo "[$(date "+%Y-%m-%d %H:%M:%S")] 🔍 Checking core dependencies..."' >> /app/start.sh && \
+    echo 'python3 -c "import pyrogram, aiohttp, pymongo, PIL, hachoir, psutil, ffmpeg; print(\"[$(date \\\"+%Y-%m-%d %H:%M:%S\\\")] ✅ All core dependencies verified!\")"' >> /app/start.sh && \
+    echo 'echo "[$(date "+%Y-%m-%d %H:%M:%S")] 🎬 FFmpeg version: $(ffmpeg -version | head -1)"' >> /app/start.sh && \
+    echo 'echo "[$(date "+%Y-%m-%d %H:%M:%S")] 🚀 Launching Professional Merge Bot..."' >> /app/start.sh && \
+    echo 'python3 bot.py' >> /app/start.sh && \
+    chmod +x /app/start.sh
 
-# Run the bot
-CMD ["./start.sh"]
+# Run the application
+CMD ["/app/start.sh"]
