@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Professional MERGE-BOT - Enhanced Version with GoFile Integration
-100% Working Professional Merger Bot with Beautiful UI
+PROFESSIONAL MERGE-BOT - Complete Working Version
+Enhanced with GoFile Integration and Beautiful UI
 """
 
 from dotenv import load_dotenv
@@ -9,7 +9,7 @@ load_dotenv("config.env", override=True)
 
 import asyncio
 import os
-import shutil  
+import shutil
 import time
 import psutil
 import pyromod
@@ -49,7 +49,63 @@ from config import Config
 from helpers import database
 from helpers.utils import UserSettings, get_readable_file_size, get_readable_time
 
+# Global variables
 botStartTime = time.time()
+userBot = None
+
+# Define missing functions that are imported by plugins
+async def delete_all(root: str):
+    """Delete all files in a directory"""
+    try:
+        if os.path.exists(root):
+            shutil.rmtree(root)
+        LOGGER.info(f"🗑️ Deleted directory: {root}")
+    except Exception as e:
+        LOGGER.error(f"❌ Error deleting {root}: {e}")
+
+async def showQueue(c: Client, cb: CallbackQuery):
+    """Show user's queue with enhanced UI"""
+    try:
+        user_id = cb.from_user.id
+        queue_data = queueDB.get(user_id, {"videos": [], "subtitles": [], "audios": []})
+        
+        videos = queue_data.get("videos", [])
+        subtitles = queue_data.get("subtitles", [])
+        audios = queue_data.get("audios", [])
+        
+        if not videos:
+            await cb.message.edit_text(
+                "📂 **Your Queue is Empty**\n\n"
+                "🎬 Send some videos to get started!\n\n"
+                "💡 **Tip:** You can send up to 10 videos to merge",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+                ])
+            )
+            return
+        
+        queue_text = f"📂 **Your Current Queue**\n\n"
+        queue_text += f"🎬 **Videos:** {len(videos)}\n"
+        queue_text += f"📝 **Subtitles:** {len(subtitles)}\n"
+        queue_text += f"🎵 **Audios:** {len(audios)}\n\n"
+        
+        if len(videos) >= 2:
+            queue_text += "✅ **Ready to merge!**"
+        else:
+            queue_text += "⚠️ **Need at least 2 videos to merge**"
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔗 Merge Now", callback_data="merge")] if len(videos) >= 2 else [],
+            [InlineKeyboardButton("🗑️ Clear Queue", callback_data="clear_queue"),
+             InlineKeyboardButton("📊 Queue Details", callback_data="queue_details")],
+            [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+        ])
+        
+        await cb.message.edit_text(queue_text, reply_markup=keyboard)
+        
+    except Exception as e:
+        LOGGER.error(f"❌ showQueue error: {e}")
+        await cb.answer("❌ Error loading queue", show_alert=True)
 
 class ProfessionalMergeBot(Client):
     def start(self):
@@ -81,6 +137,7 @@ mergeApp = ProfessionalMergeBot(
     app_version="6.0-professional-enhanced",
 )
 
+# Create downloads directory
 if not os.path.exists("downloads"):
     os.makedirs("downloads")
 
@@ -202,8 +259,8 @@ async def stats_handler(c: Client, m: Message):
 🚀 **Bot Information:**
 ├─ **Version:** Professional Enhanced v6.0
 ├─ **Premium Status:** {"✅ Active" if Config.IS_PREMIUM else "❌ Inactive"}
-├─ **GoFile Integration:** {"✅ Enabled" if Config.GOFILE_TOKEN else "❌ Disabled"}
-└─ **Log Channel:** {"✅ Active" if Config.LOGCHANNEL else "❌ Not Set"}
+├─ **GoFile Integration:** {"✅ Enabled" if hasattr(Config, 'GOFILE_TOKEN') and Config.GOFILE_TOKEN else "❌ Disabled"}
+└─ **Log Channel:** {"✅ Active" if hasattr(Config, 'LOGCHANNEL') and Config.LOGCHANNEL else "❌ Not Set"}
 
 🎯 **Performance Score:** {100 - int((cpuUsage + memory + disk) / 3)}%"""
     
@@ -343,14 +400,66 @@ async def help_msg(c: Client, m: Message):
     
     await m.reply_text(help_text, quote=True, reply_markup=keyboard)
 
+# Video handler for queue management
+@mergeApp.on_message(filters.video | filters.document)
+async def handle_videos(c: Client, m: Message):
+    """Handle incoming videos and add to queue"""
+    try:
+        user = UserSettings(m.from_user.id, m.from_user.first_name)
+        
+        if not user.allowed:
+            await m.reply_text("🔐 **Access denied!** Please login first with `/login <password>`")
+            return
+        
+        user_id = m.from_user.id
+        
+        # Initialize queue if not exists
+        if user_id not in queueDB:
+            queueDB[user_id] = {"videos": [], "subtitles": [], "audios": []}
+        
+        # Check if it's a video file
+        media = m.video or m.document
+        if not media:
+            return
+            
+        file_name = media.file_name or "video"
+        file_extension = file_name.split(".")[-1].lower()
+        
+        if file_extension in VIDEO_EXTENSIONS:
+            queueDB[user_id]["videos"].append(m.id)
+            
+            queue_count = len(queueDB[user_id]["videos"])
+            
+            if queue_count >= 10:
+                await m.reply_text("⚠️ **Queue Full!** Maximum 10 videos allowed.")
+                return
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔗 Merge Now", callback_data="merge")] if queue_count >= 2 else [],
+                [InlineKeyboardButton("📂 Show Queue", callback_data="show_queue"),
+                 InlineKeyboardButton("⚙️ Settings", callback_data="settings")],
+                [InlineKeyboardButton("🗑️ Clear Queue", callback_data="clear_queue")]
+            ])
+            
+            await m.reply_text(
+                f"✅ **Video Added to Queue!**\n\n"
+                f"📁 **File:** `{file_name}`\n"
+                f"📊 **Size:** `{get_readable_file_size(media.file_size)}`\n"
+                f"🎬 **Queue:** {queue_count}/10 videos\n\n"
+                f"{'🔗 **Ready to merge!**' if queue_count >= 2 else '⏳ **Send more videos to merge**'}",
+                reply_markup=keyboard
+            )
+        
+    except Exception as e:
+        LOGGER.error(f"❌ Video handler error: {e}")
+
 if __name__ == "__main__":
     # Initialize professional bot
     LOGGER.info("🚀 Starting Professional MERGE-BOT...")
     
     # Check if user bot is configured for premium uploads
-    userBot = None
     try:
-        if Config.USER_SESSION_STRING:
+        if hasattr(Config, 'USER_SESSION_STRING') and Config.USER_SESSION_STRING:
             LOGGER.info("🔄 Initializing Premium User Session...")
             userBot = Client(
                 name="premium-merge-bot-user",
@@ -358,14 +467,15 @@ if __name__ == "__main__":
                 no_updates=True,
             )
             with userBot:
-                userBot.send_message(
-                    chat_id=int(Config.LOGCHANNEL or Config.OWNER),
-                    text="🤖 **Premium Session Activated**\n\n"
-                         "✅ **4GB upload support enabled**\n"
-                         "🔗 **GoFile integration active**\n"  
-                         "⚡ **Professional features unlocked**",
-                    disable_web_page_preview=True,
-                )
+                if hasattr(Config, 'LOGCHANNEL') and Config.LOGCHANNEL:
+                    userBot.send_message(
+                        chat_id=int(Config.LOGCHANNEL),
+                        text="🤖 **Premium Session Activated**\n\n"
+                             "✅ **4GB upload support enabled**\n"
+                             "🔗 **GoFile integration active**\n"  
+                             "⚡ **Professional features unlocked**",
+                        disable_web_page_preview=True,
+                    )
                 user = userBot.get_me()
                 Config.IS_PREMIUM = user.is_premium
                 LOGGER.info(f"✅ Premium Status: {Config.IS_PREMIUM}")
