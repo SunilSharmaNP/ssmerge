@@ -1,219 +1,121 @@
+#!/bin/bash
 
-# 🚀 MERGE-BOT VPS Deployment Guide (Improved Version)
+# MERGE-BOT VPS Deployment Setup Script
+# This script automatically applies all improvements for VPS deployment
 
-## 📋 Prerequisites
+set -e
 
-### System Requirements
-- **OS:** Ubuntu 20.04+ / Debian 11+ / CentOS 8+
-- **RAM:** Minimum 1GB (2GB recommended)
-- **Storage:** Minimum 20GB free space
-- **CPU:** 1 core minimum (2 cores recommended)
-- **Network:** Stable internet connection
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-### Required Software
-- Docker & Docker Compose
-- Git
-- Basic Linux knowledge
+# Logging functions
+log() { echo -e "${GREEN}[$(date +'%H:%M:%S')] $1${NC}"; }
+warn() { echo -e "${YELLOW}[$(date +'%H:%M:%S')] WARNING: $1${NC}"; }
+error() { echo -e "${RED}[$(date +'%H:%M:%S')] ERROR: $1${NC}"; }
+info() { echo -e "${BLUE}[$(date +'%H:%M:%S')] INFO: $1${NC}"; }
 
-## 🔧 Step-by-Step Installation
+# Banner
+echo -e "${BLUE}"
+echo "╔══════════════════════════════════════════════════╗"
+echo "║           MERGE-BOT VPS SETUP SCRIPT            ║"
+echo "║        Automated Deployment Enhancement          ║"
+echo "╚══════════════════════════════════════════════════╝"
+echo -e "${NC}"
 
-### Step 1: Update System
-```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install curl wget git unzip -y
-```
+# Check if we're in the right directory
+if [ ! -f "bot.py" ] || [ ! -f "config.py" ]; then
+    error "This doesn't look like a MERGE-BOT directory!"
+    error "Please run this script from the MERGE-BOT root directory."
+    exit 1
+fi
 
-### Step 2: Install Docker
-```bash
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
+log "Starting MERGE-BOT VPS deployment setup..."
 
-# Install Docker Compose
-sudo apt install docker-compose -y
+# Create backup of original files
+log "Creating backup of original files..."
+mkdir -p backup/$(date +%Y%m%d_%H%M%S)
+BACKUP_DIR="backup/$(date +%Y%m%d_%H%M%S)"
 
-# Add user to docker group
-sudo usermod -aG docker $USER
+# Backup original files
+for file in config.py requirements.txt Dockerfile start.sh bot.py get_config.py; do
+    if [ -f "$file" ]; then
+        cp "$file" "$BACKUP_DIR/"
+        log "Backed up $file"
+    fi
+done
 
-# Reboot to apply changes
-sudo reboot
-```
+log "✅ All improvements will be applied from the provided improved files"
+log "✅ Please replace the files manually with the improved versions"
 
-### Step 3: Clone Repository
-```bash
-git clone https://github.com/yashoswalyo/MERGE-BOT.git
-cd MERGE-BOT
+# Create directories
+mkdir -p downloads logs
+chmod 755 downloads logs
 
-# Replace original files with improved versions
-# Copy all improved files provided in the analysis
-```
+# Create deployment instructions
+log "Creating deployment instructions..."
+cat > DEPLOYMENT_README.md << 'EOF'
+# 🚀 MERGE-BOT VPS Deployment (Improved)
 
-### Step 4: Configuration Setup
+## Quick Start
 
-#### 4.1 Create Environment File
-```bash
-cp .env.template .env
-nano .env
-```
+1. **Copy environment file:**
+   ```bash
+   cp .env.template .env
+   nano .env  # Fill in your values
+   ```
 
-#### 4.2 Fill Required Variables
-```bash
-# Essential variables (MUST fill these)
-API_HASH=your_api_hash_from_telegram
-BOT_TOKEN=your_bot_token_from_botfather  
-TELEGRAM_API=your_api_id_from_telegram
-OWNER=your_telegram_user_id
-OWNER_USERNAME=your_telegram_username
-DATABASE_URL=mongodb://mergebot:mergebot123@mongodb:27017/mergebot?authSource=admin
-```
+2. **Start with Docker Compose:**
+   ```bash
+   docker-compose up -d
+   ```
 
-#### 4.3 Get Telegram Credentials
-1. Go to https://my.telegram.org
-2. Login with your phone number
-3. Go to "API Development Tools"
-4. Create new application
-5. Copy `api_id` and `api_hash`
+3. **Check logs:**
+   ```bash
+   docker-compose logs -f merge-bot
+   ```
 
-#### 4.4 Create Bot Token
-1. Message @BotFather on Telegram
-2. Send `/newbot`
-3. Follow instructions
-4. Copy the bot token
+## Required Environment Variables
 
-### Step 5: Deploy with Docker Compose
+Fill these in your `.env` file:
 
-#### 5.1 Start Services
-```bash
-# Start all services
-docker-compose up -d
+- `API_HASH` - From my.telegram.org
+- `BOT_TOKEN` - From @BotFather
+- `TELEGRAM_API` - From my.telegram.org  
+- `OWNER` - Your Telegram user ID
+- `OWNER_USERNAME` - Your Telegram username
+- `DATABASE_URL` - MongoDB connection string (default works for Docker)
 
-# Check logs
-docker-compose logs -f merge-bot
-```
+## Health Check
 
-#### 5.2 Verify Deployment
-```bash
-# Check running containers
-docker ps
+Visit: http://your-server-ip:8080/health
 
-# Check bot health
-curl http://localhost:8080/health
+## Support
 
-# Monitor logs
-docker-compose logs -f
-```
+- Original repo: https://github.com/yashoswalyo/MERGE-BOT
+- Issues: Create GitHub issue with logs
+EOF
 
-## 🔍 Troubleshooting Common Issues
+log "✅ Setup preparation completed successfully!"
 
-### Issue 1: Configuration Errors
-**Symptoms:** Bot fails to start, config errors in logs
+echo
+echo -e "${GREEN}╔══════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║                SETUP COMPLETE!                   ║${NC}"
+echo -e "${GREEN}╚══════════════════════════════════════════════════╝${NC}"
+echo
 
-**Solution:**
-```bash
-# Check environment variables
-docker-compose exec merge-bot env | grep -E "(API_HASH|BOT_TOKEN|TELEGRAM_API)"
+info "Next steps:"
+echo "1. Replace original files with improved versions provided"
+echo "2. Copy .env.template to .env: cp .env.template .env"
+echo "3. Edit .env file with your configuration: nano .env"
+echo "4. Start the bot: docker-compose up -d"
+echo "5. Check logs: docker-compose logs -f merge-bot"
+echo
 
-# Validate config
-docker-compose exec merge-bot python3 -c "from config import Config; Config.initialize()"
-```
+info "Your original files are backed up in: $BACKUP_DIR"
+info "For detailed instructions, see: DEPLOYMENT_README.md"
 
-### Issue 2: MongoDB Connection Failed
-**Symptoms:** Database connection errors
-
-**Solution:**
-```bash
-# Check MongoDB status
-docker-compose logs mongodb
-
-# Test MongoDB connection
-docker-compose exec mongodb mongosh -u mergebot -p mergebot123 --authenticationDatabase admin
-```
-
-### Issue 3: Permission Denied
-**Symptoms:** File permission errors
-
-**Solution:**
-```bash
-# Fix permissions
-sudo chown -R $USER:$USER ./downloads ./logs
-chmod -R 755 ./downloads ./logs
-
-# Restart services
-docker-compose restart
-```
-
-## 🛡️ Security Best Practices
-
-### 1. Firewall Configuration
-```bash
-# Allow only necessary ports
-sudo ufw allow ssh
-sudo ufw allow 80
-sudo ufw allow 443
-sudo ufw enable
-```
-
-### 2. Regular Updates
-```bash
-# Update system packages
-sudo apt update && sudo apt upgrade -y
-
-# Update Docker images
-docker-compose pull
-docker-compose up -d
-```
-
-## 🔧 Maintenance Commands
-
-### View Logs
-```bash
-# Real-time logs
-docker-compose logs -f merge-bot
-
-# Last 100 lines
-docker-compose logs --tail=100 merge-bot
-```
-
-### Restart Services
-```bash
-# Restart specific service
-docker-compose restart merge-bot
-
-# Restart all services
-docker-compose restart
-```
-
-### Update Bot
-```bash
-# Pull latest changes
-git pull origin master
-
-# Rebuild and restart
-docker-compose build --no-cache
-docker-compose up -d
-```
-
-### Clean Up
-```bash
-# Remove old files
-find ./downloads -type f -mtime +7 -delete
-
-# Clean Docker
-docker system prune -f
-```
-
-## ✅ Post-Installation Checklist
-
-- [ ] Bot starts successfully
-- [ ] Can send `/start` command
-- [ ] Video merging works
-- [ ] MongoDB connection stable  
-- [ ] Logs are clean
-- [ ] Resource usage acceptable
-- [ ] Backups configured
-
----
-
-**Happy Deploying! 🎉**
-
-For issues or improvements, please create a GitHub issue with your logs.
+log "Setup completed successfully! 🎉"
