@@ -30,7 +30,7 @@ from bot import (
 from config import Config
 
 # Import COMPLETE merge integration - FIXED VERSION
-from plugins.mergeVideo_enhanced import mergeNow_enhanced
+from plugins.mergeVideo import mergeNow_enhanced
 from helpers.downloader import download_from_url, download_from_tg
 from helpers.uploader import GofileUploader, upload_to_telegram
 
