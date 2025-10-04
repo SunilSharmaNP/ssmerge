@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Enhanced Professional GoFile Uploader
-Integrated with FileStream-style Merge Bot
-Based on provided uploader-8.py with improvements
+🎬 QUICK FIX UPLOADER - ADDS MISSING uploadVideo FUNCTION  
+Adds uploadVideo function to your existing uploader.py
+This fixes the import error immediately
 """
 
+# ============ EXISTING CODE FROM YOUR UPLOADER.PY ============
 import os
 import time
 import asyncio
@@ -188,8 +189,8 @@ class GofileUploader:
             print(error_msg)
             if status_message:
                 await status_message.edit_text(
-                    f"❌ **GoFile Upload Failed!**\n\n"
-                    f"🚨 **Error:** `{error_msg}`\n\n"
+                    f"❌ **GoFile Upload Failed!**\\n\\n"
+                    f"🚨 **Error:** `{error_msg}`\\n\\n"
                     f"💡 **Tip:** GoFile servers might be busy. Try again later."
                 )
             raise Exception(error_msg) from e
@@ -197,8 +198,8 @@ class GofileUploader:
         if status_message:
             await smart_progress_editor(
                 status_message,
-                f"🚀 **Starting GoFile Upload...**\n\n"
-                f"📁 **File:** `{filename}`\n"
+                f"🚀 **Starting GoFile Upload...**\\n\\n"
+                f"📁 **File:** `{filename}`\\n"
                 f"📊 **Size:** `{get_readable_file_size(file_size)}`"
             )
 
@@ -271,11 +272,11 @@ class GofileUploader:
                 if status_message:
                     elapsed_time = time.time() - start_time
                     await status_message.edit_text(
-                        f"✅ **GoFile Upload Complete!**\n\n"
-                        f"📁 **File:** `{filename}`\n"
-                        f"📊 **Size:** `{get_readable_file_size(file_size)}`\n"
-                        f"⏱ **Time:** `{elapsed_time:.1f}s`\n"
-                        f"🔗 **Link:** {download_page}\n\n"
+                        f"✅ **GoFile Upload Complete!**\\n\\n"
+                        f"📁 **File:** `{filename}`\\n"
+                        f"📊 **Size:** `{get_readable_file_size(file_size)}`\\n"
+                        f"⏱ **Time:** `{elapsed_time:.1f}s`\\n"
+                        f"🔗 **Link:** {download_page}\\n\\n"
                         f"💡 **Note:** Links expire after 10 days of inactivity."
                     )
 
@@ -289,9 +290,9 @@ class GofileUploader:
             print(error_msg)
             if status_message:
                 await status_message.edit_text(
-                    f"❌ **GoFile Upload Failed!**\n\n"
-                    f"📁 **File:** `{filename}`\n"
-                    f"🚨 **Error:** `{error_msg}`\n\n"
+                    f"❌ **GoFile Upload Failed!**\\n\\n"
+                    f"📁 **File:** `{filename}`\\n"
+                    f"🚨 **Error:** `{error_msg}`\\n\\n"
                     f"💡 **Tip:** Check GoFile status or try again."
                 )
             raise Exception(error_msg) from e
@@ -300,9 +301,9 @@ class GofileUploader:
             print(f"❌ GoFile upload error: {e}")
             if status_message:
                 await status_message.edit_text(
-                    f"❌ **GoFile Upload Failed!**\n\n"
-                    f"📁 **File:** `{filename}`\n"
-                    f"🚨 **Error:** `{str(e)}`\n\n"
+                    f"❌ **GoFile Upload Failed!**\\n\\n"
+                    f"📁 **File:** `{filename}`\\n"
+                    f"🚨 **Error:** `{str(e)}`\\n\\n"
                     f"💡 **Tip:** Try again or contact support."
                 )
             raise e
@@ -371,7 +372,7 @@ async def upload_to_telegram(client, chat_id: int, file_path: str, status_messag
             await smart_progress_editor(status_message, progress_text.strip())
 
         # Upload the video
-        await smart_progress_editor(status_message, f"🚀 **Starting Telegram upload...**\n\n📁 **File:** `{final_filename}`")
+        await smart_progress_editor(status_message, f"🚀 **Starting Telegram upload...**\\n\\n📁 **File:** `{final_filename}`")
 
         await client.send_video(
             chat_id=chat_id,
@@ -415,10 +416,181 @@ async def upload_to_telegram(client, chat_id: int, file_path: str, status_messag
             except Exception as e:
                 print(f"Error cleaning up thumbnail: {e}")
 
-# Export main functions
+# ============================================================================
+# MISSING FUNCTIONS - THIS IS WHAT WAS CAUSING THE ERROR!
+# ============================================================================
+
+# Import required modules for backward compatibility
+from __init__ import LOGGER
+from pyrogram import Client
+from pyrogram.types import CallbackQuery, Message
+from helpers.display_progress import Progress
+
+# Import bot variables - handle gracefully if not available
+try:
+    from bot import LOGCHANNEL, userBot
+except ImportError:
+    LOGCHANNEL = None
+    userBot = None
+    print("Warning: LOGCHANNEL and userBot not available - uploads will be direct only")
+
+async def uploadVideo(
+    c: Client,
+    cb: CallbackQuery,
+    merged_video_path,
+    width,
+    height,
+    duration,
+    video_thumbnail,
+    file_size,
+    upload_mode: bool,
+):
+    """
+    MISSING FUNCTION ADDED - This fixes the import error!
+    This is the uploadVideo function that mergeVideoAudio.py needs
+    """
+    try:
+        LOGGER.info(f"📤 Starting uploadVideo for {cb.from_user.first_name}")
+        
+        # Report your errors in telegram group (@yo_codes).
+        if Config.IS_PREMIUM and userBot and LOGCHANNEL:
+            sent_ = None
+            prog = Progress(cb.from_user.id, c, cb.message)
+            
+            async with userBot:
+                if upload_mode is False:
+                    c_time = time.time()
+                    sent_: Message = await userBot.send_video(
+                        chat_id=int(LOGCHANNEL),
+                        video=merged_video_path,
+                        height=height,
+                        width=width,
+                        duration=duration,
+                        thumb=video_thumbnail,
+                        caption=f"`{merged_video_path.rsplit('/',1)[-1]}`\\n\\nMerged for: {cb.from_user.mention}",
+                        progress=prog.progress_for_pyrogram,
+                        progress_args=(
+                            f"Uploading: `{merged_video_path.rsplit('/',1)[-1]}`",
+                            c_time,
+                        ),
+                    )
+                else:
+                    c_time = time.time()
+                    sent_: Message = await userBot.send_document(
+                        chat_id=int(LOGCHANNEL),
+                        document=merged_video_path,
+                        thumb=video_thumbnail,
+                        caption=f"`{merged_video_path.rsplit('/',1)[-1]}`\\n\\nMerged for: {cb.from_user.first_name}",
+                        progress=prog.progress_for_pyrogram,
+                        progress_args=(
+                            f"Uploading: `{merged_video_path.rsplit('/',1)[-1]}`",
+                            c_time,
+                        ),
+                    )
+
+                if sent_ is not None:
+                    await c.copy_message(
+                        chat_id=cb.message.chat.id,
+                        from_chat_id=sent_.chat.id,
+                        message_id=sent_.id,
+                        caption=f"`{merged_video_path.rsplit('/',1)[-1]}`",
+                    )
+                    
+        else:
+            try:
+                sent_ = None
+                prog = Progress(cb.from_user.id, c, cb.message)
+                
+                if upload_mode is False:
+                    c_time = time.time()
+                    sent_: Message = await c.send_video(
+                        chat_id=cb.message.chat.id,
+                        video=merged_video_path,
+                        height=height,
+                        width=width,
+                        duration=duration,
+                        thumb=video_thumbnail,
+                        caption=f"`{merged_video_path.rsplit('/',1)[-1]}`",
+                        progress=prog.progress_for_pyrogram,
+                        progress_args=(
+                            f"Uploading: `{merged_video_path.rsplit('/',1)[-1]}`",
+                            c_time,
+                        ),
+                    )
+                else:
+                    c_time = time.time()
+                    sent_: Message = await c.send_document(
+                        chat_id=cb.message.chat.id,
+                        document=merged_video_path,
+                        thumb=video_thumbnail,
+                        caption=f"`{merged_video_path.rsplit('/',1)[-1]}`",
+                        progress=prog.progress_for_pyrogram,
+                        progress_args=(
+                            f"Uploading: `{merged_video_path.rsplit('/',1)[-1]}`",
+                            c_time,
+                        ),
+                    )
+                    
+            except Exception as err:
+                LOGGER.info(err)
+                await cb.message.edit("Failed to upload")
+                
+        if sent_ is not None and LOGCHANNEL:
+            try:
+                media = sent_.video or sent_.document
+                await sent_.copy(
+                    chat_id=int(LOGCHANNEL),
+                    caption=f"`{media.file_name}`\\n\\nMerged for: {cb.from_user.first_name}",
+                )
+            except:
+                pass  # Ignore if log channel copy fails
+                
+        LOGGER.info(f"✅ uploadVideo completed for {cb.from_user.first_name}")
+        
+    except Exception as e:
+        LOGGER.error(f"❌ uploadVideo error: {e}")
+        await cb.message.edit("❌ **Upload failed!** Please try again.")
+
+async def uploadFiles(c: Client, cb: CallbackQuery, up_path, n, all):
+    """
+    MISSING FUNCTION ADDED - For file extraction plugins  
+    """
+    try:
+        sent_ = None
+        prog = Progress(cb.from_user.id, c, cb.message)
+        c_time = time.time()
+        
+        sent_: Message = await c.send_document(
+            chat_id=cb.message.chat.id,
+            document=up_path,
+            caption=f"`{up_path.rsplit('/',1)[-1]}`",
+            progress=prog.progress_for_pyrogram,
+            progress_args=(
+                f"Uploading: `{up_path.rsplit('/',1)[-1]}`",
+                c_time,
+                f"\\n**Uploading: {n}/{all}**"
+            ),
+        )
+
+        if sent_ is not None and LOGCHANNEL:
+            try:
+                media = sent_.video or sent_.document
+                await sent_.copy(
+                    chat_id=int(LOGCHANNEL),
+                    caption=f"`{media.file_name}`\\n\\nExtracted by: {cb.from_user.first_name}",
+                )
+            except:
+                pass  # Ignore if log channel copy fails
+                
+    except Exception as e:
+        LOGGER.error(f"❌ uploadFiles error: {e}")
+
+# Export all functions for maximum compatibility
 __all__ = [
-    'GofileUploader',
-    'upload_to_telegram', 
+    'uploadVideo',         # ✅ FIXED - This was missing!
+    'uploadFiles',         # ✅ ADDED - For backward compatibility
+    'GofileUploader',      # ✅ New enhanced feature
+    'upload_to_telegram',  # ✅ New enhanced feature
     'create_default_thumbnail',
     'smart_progress_editor'
 ]
