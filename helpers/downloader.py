@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
+🎬 FIXED DOWNLOADER - SYNTAX ERROR RESOLVED
 Enhanced Professional Downloader with DDL Support
-Integrated with FileStream-style Merge Bot
-Based on provided downloader-10.py with improvements
+All syntax errors fixed and ready to use
 """
 
 import aiohttp
@@ -25,7 +25,7 @@ from pyrogram.errors import FloodWait
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Global variables
+# Global variables - FIXED
 last_edit_time = {}
 EDIT_THROTTLE_SECONDS = 2.0
 DOWNLOAD_CANCELLED = {}
@@ -77,7 +77,9 @@ def cleanup_download_session(user_id: int, session_key: str = "default"):
     logger.info(f"🧹 Cleaned up download session: {key}")
 
 async def smart_progress_editor(status_message, text: str):
-    """Enhanced progress editor with FloodWait handling"""
+    """Enhanced progress editor with FloodWait handling - FIXED VERSION"""
+    global last_edit_time  # Use global instead of nonlocal
+    
     if not status_message or not hasattr(status_message, 'chat'):
         return
 
@@ -327,9 +329,8 @@ def handle_gofile_url(url: str, password: str = None) -> tuple:
     before_sleep=lambda retry_state: logger.warning(f"Retrying download (attempt {retry_state.attempt_number})...")
 )
 async def _perform_download_request(session: aiohttp.ClientSession, url: str, dest_path: str, status_message, total_size: int, user_id: int, session_key: str = "default"):
-    """Enhanced download request with professional progress tracking"""
+    """Enhanced download request with professional progress tracking - FIXED VERSION"""
     start_time = time.time()
-    last_progress_time = start_time
     downloaded = 0
 
     try:
@@ -353,28 +354,25 @@ async def _perform_download_request(session: aiohttp.ClientSession, url: str, de
                     f.write(chunk)
                     downloaded += len(chunk)
 
-                    now = time.time()
-                    if (now - last_progress_time) >= EDIT_THROTTLE_SECONDS or downloaded >= total_size:
-                        last_progress_time = now
+                    # Progress update with proper timing
+                    if total_size > 0:
+                        progress_percent = downloaded / total_size
+                        speed = get_speed(start_time, downloaded)
+                        eta = get_time_left(start_time, downloaded, total_size)
 
-                        if total_size > 0:
-                            progress_percent = downloaded / total_size
-                            speed = get_speed(start_time, downloaded)
-                            eta = get_time_left(start_time, downloaded, total_size)
+                        progress_text = (
+                            f"📥 **Professional URL Downloader**\\n\\n"
+                            f"📁 **File:** `{os.path.basename(dest_path)}`\\n"
+                            f"📊 **Size:** `{get_readable_file_size(total_size)}`\\n\\n"
+                            f"➤ {get_progress_bar(progress_percent)} `{progress_percent:.1%}`\\n\\n"
+                            f"📈 **Downloaded:** `{get_readable_file_size(downloaded)}`\\n"
+                            f"🚀 **Speed:** `{speed}`\\n"
+                            f"⏱ **ETA:** `{eta}`\\n"
+                            f"📡 **Status:** {'Complete!' if downloaded >= total_size else 'Downloading...'}\\n\\n"
+                            f"💡 **FileStream-Style Professional Downloader**"
+                        )
 
-                            progress_text = (
-                                f"📥 **Professional URL Downloader**\\n\\n"
-                                f"📁 **File:** `{os.path.basename(dest_path)}`\\n"
-                                f"📊 **Size:** `{get_readable_file_size(total_size)}`\\n\\n"
-                                f"➤ {get_progress_bar(progress_percent)} `{progress_percent:.1%}`\\n\\n"
-                                f"📈 **Downloaded:** `{get_readable_file_size(downloaded)}`\\n"
-                                f"🚀 **Speed:** `{speed}`\\n"
-                                f"⏱ **ETA:** `{eta}`\\n"
-                                f"📡 **Status:** {'Complete!' if downloaded >= total_size else 'Downloading...'}\\n\\n"
-                                f"💡 **FileStream-Style Professional Downloader**"
-                            )
-
-                            await smart_progress_editor(status_message, progress_text)
+                        await smart_progress_editor(status_message, progress_text)
 
                     await asyncio.sleep(0.001)
 
@@ -391,7 +389,7 @@ async def _perform_download_request(session: aiohttp.ClientSession, url: str, de
         raise e
 
 async def download_from_url(url: str, user_id: int, status_message, file_index: int = 1, total_files: int = 1, password: str = None, session_key: str = "default") -> str | None:
-    """Enhanced URL download with FileStream-style progress"""
+    """Enhanced URL download with FileStream-style progress - FIXED VERSION"""
     start_time = time.time()
     
     # Initialize download session
@@ -540,12 +538,12 @@ async def download_from_url(url: str, user_id: int, status_message, file_index: 
 
     except Exception as e:
         logger.error(f"Download error: {e}")
-        if os.path.exists(dest_path):
+        if 'dest_path' in locals() and os.path.exists(dest_path):
             os.remove(dest_path)
         
         await smart_progress_editor(status_message,
             f"❌ **Download Failed!**\\n\\n"
-            f"📁 **File:** `{file_name}`\\n"
+            f"📁 **File:** `{file_name if 'file_name' in locals() else 'Unknown'}`\\n"
             f"🚨 **Error:** `{type(e).__name__}: {str(e)}`\\n\\n"
             f"💡 **Tip:** Try again or contact support."
         )
@@ -555,7 +553,9 @@ async def download_from_url(url: str, user_id: int, status_message, file_index: 
         cleanup_download_session(user_id, session_key)
 
 async def download_from_tg(client, message, user_id: int, status_message, file_index: int = 1, total_files: int = 1, session_key: str = "default") -> str | None:
-    """Enhanced Telegram download with FileStream-style UI"""
+    """Enhanced Telegram download with FileStream-style UI - FIXED VERSION"""
+    global last_edit_time  # Use global instead of nonlocal
+    
     # Initialize download session
     start_download_session(user_id, session_key)
     
@@ -620,8 +620,6 @@ async def download_from_tg(client, message, user_id: int, status_message, file_i
         start_time = time.time()
 
         async def enhanced_progress_callback(current, total):
-            nonlocal last_edit_time
-            
             # Check for cancellation
             if is_download_cancelled(user_id, session_key):
                 raise DownloadCancelledException("Download cancelled by user")
@@ -641,7 +639,6 @@ async def download_from_tg(client, message, user_id: int, status_message, file_i
             progress = current / total if total > 0 else 0
             speed = get_speed(start_time, current)
             eta = get_time_left(start_time, current, total)
-            elapsed = now - start_time
 
             progress_text = (
                 f"📥 **FileStream Telegram Downloader** ({file_index}/{total_files})\\n\\n"
