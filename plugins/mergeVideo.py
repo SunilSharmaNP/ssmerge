@@ -1,30 +1,304 @@
+#!/usr/bin/env python3
+"""
+🎬 ENHANCED MERGE VIDEO - COMPLETE DDL INTEGRATION
+Fixed version with full downloader and uploader integration
+"""
+
 import asyncio
 import os
 import time
 from bot import (LOGGER, UPLOAD_AS_DOC, UPLOAD_TO_DRIVE, delete_all, formatDB,
-                 gDict, queueDB, replyDB)
+                gDict, queueDB, replyDB, user_processes)
 from config import Config
 from hachoir.metadata import extractMetadata
 from hachoir.parser import createParser
 from helpers.display_progress import Progress
 from helpers.ffmpeg_helper import MergeSub, MergeVideo, take_screen_shot
-from helpers.uploader import uploadVideo
 from helpers.utils import UserSettings, get_readable_file_size, get_readable_time
 from PIL import Image
 from pyrogram import Client
 from pyrogram.errors import MessageNotModified
 from pyrogram.errors.rpc_error import UnknownError
-from pyrogram.types import CallbackQuery
+from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
-# Global process management to prevent conflicts
-user_processes = {}
+# Import ENHANCED downloaders and uploaders
+from helpers.downloader import download_from_url, download_from_tg
+from helpers.uploader import GofileUploader, upload_to_telegram
 
+async def mergeNow_enhanced(c: Client, cb: CallbackQuery, user_id: int, video_message_ids: list, download_urls: list):
+    """ENHANCED merge function with COMPLETE DDL integration and professional processing"""
+    
+    try:
+        LOGGER.info(f"🚀 Starting ENHANCED merge process for user {user_id}")
+        
+        # Create user download directory
+        user_dir = f"downloads/{user_id}"
+        if not os.path.exists(user_dir):
+            os.makedirs(user_dir)
+        
+        downloaded_files = []
+        vid_list = []
+        duration = 0
+        
+        total_items = len(video_message_ids) + len(download_urls)
+        current_item = 1
+        
+        # PHASE 1: Download all files (Telegram + URLs)
+        await cb.message.edit_text(
+            f"📥 **Phase 1: Professional Download Process**\n\n"
+            f"📊 **Processing {total_items} items:**\n"
+            f"├─ **Telegram Videos:** {len(video_message_ids)}\n"
+            f"├─ **Download URLs:** {len(download_urls)}\n"
+            f"└─ **Current:** Initializing downloads...\n\n"
+            f"⚡ **Enhanced multi-source processing...**"
+        )
+        
+        # Download Telegram videos
+        for message_id in video_message_ids:
+            try:
+                await cb.message.edit_text(
+                    f"📥 **Phase 1: Download Progress ({current_item}/{total_items})**\n\n"
+                    f"📺 **Downloading Telegram video...**\n"
+                    f"📊 **Progress:** {current_item}/{total_items}\n"
+                    f"⚡ **Professional processing active**\n\n"
+                    f"⏳ **Please wait for download completion...**"
+                )
+                
+                # Get message
+                message = await c.get_messages(chat_id=user_id, message_ids=message_id)
+                
+                # Download using enhanced downloader
+                file_path = await download_from_tg(
+                    client=c,
+                    message=message,
+                    user_id=user_id,
+                    status_message=cb.message,
+                    file_index=current_item,
+                    total_files=total_items,
+                    session_key="merge"
+                )
+                
+                if file_path and os.path.exists(file_path):
+                    downloaded_files.append(file_path)
+                    LOGGER.info(f"✅ Downloaded Telegram video: {file_path}")
+                else:
+                    LOGGER.warning(f"⚠️ Failed to download Telegram video {message_id}")
+                
+                current_item += 1
+                
+            except Exception as e:
+                LOGGER.error(f"❌ Error downloading Telegram video {message_id}: {e}")
+                current_item += 1
+                continue
+        
+        # Download URLs using enhanced downloader
+        for url in download_urls:
+            try:
+                await cb.message.edit_text(
+                    f"📥 **Phase 1: Download Progress ({current_item}/{total_items})**\n\n"
+                    f"🔗 **Downloading from URL...**\n"
+                    f"📊 **Progress:** {current_item}/{total_items}\n"
+                    f"🌐 **URL:** `{url[:50]}...`\n\n"
+                    f"⏳ **Professional URL processing...**"
+                )
+                
+                # Download using enhanced URL downloader
+                file_path = await download_from_url(
+                    url=url,
+                    user_id=user_id,
+                    status_message=cb.message,
+                    file_index=current_item,
+                    total_files=total_items,
+                    session_key="merge"
+                )
+                
+                if file_path and os.path.exists(file_path):
+                    downloaded_files.append(file_path)
+                    LOGGER.info(f"✅ Downloaded URL: {file_path}")
+                else:
+                    LOGGER.warning(f"⚠️ Failed to download URL: {url}")
+                
+                current_item += 1
+                
+            except Exception as e:
+                LOGGER.error(f"❌ Error downloading URL {url}: {e}")
+                current_item += 1
+                continue
+        
+        # Check if we have enough files
+        if len(downloaded_files) < 2:
+            await cb.message.edit_text(
+                f"❌ **Insufficient Files for Merge**\n\n"
+                f"📊 **Downloaded:** {len(downloaded_files)}/2 minimum\n"
+                f"⚠️ **Need at least 2 valid video files**\n\n"
+                f"💡 **Please add more videos or URLs**",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔄 Try Again", callback_data="merge")],
+                    [InlineKeyboardButton("🔙 Back to Main", callback_data="start")]
+                ])
+            )
+            user_processes[user_id] = False
+            return
+        
+        # PHASE 2: Process and merge files
+        await cb.message.edit_text(
+            f"🔄 **Phase 2: Professional Video Processing**\n\n"
+            f"📊 **Successfully downloaded:** {len(downloaded_files)} files\n"
+            f"⚡ **Starting high-quality merge process**\n"
+            f"🎬 **Using professional FFmpeg settings**\n\n"
+            f"⏳ **Processing may take several minutes...**"
+        )
+        
+        # Create input file for FFmpeg
+        input_file = f"{user_dir}/input.txt"
+        
+        # Process each downloaded file
+        for file_path in downloaded_files:
+            try:
+                # Extract metadata
+                metadata = extractMetadata(createParser(file_path))
+                if metadata and metadata.has("duration"):
+                    duration += metadata.get("duration").seconds
+                
+                vid_list.append(f"file '{file_path}'")
+                LOGGER.info(f"📁 Added to merge list: {file_path}")
+                
+            except Exception as e:
+                LOGGER.error(f"❌ Metadata extraction failed for {file_path}: {e}")
+                continue
+        
+        # Check if we have valid videos for merging
+        if not vid_list:
+            await cb.message.edit_text(
+                f"❌ **No Valid Videos Found**\n\n"
+                f"🚨 **All downloaded files are corrupted or unsupported**\n"
+                f"💡 **Please check your video sources and try again**"
+            )
+            user_processes[user_id] = False
+            await delete_all(user_dir)
+            return
+        
+        LOGGER.info(f"🔀 Merging {len(vid_list)} videos for user {user_id}")
+        
+        # Write input file
+        with open(input_file, "w") as f:
+            f.write("\n".join(vid_list))
+        
+        # Enhanced merge process
+        await cb.message.edit_text(
+            f"🔀 **Phase 2: High-Quality Merging**\n\n"
+            f"📊 **Videos to merge:** {len(vid_list)}\n"
+            f"⏱ **Total duration:** ~{get_readable_time(duration)}\n"
+            f"⚡ **Professional quality settings active**\n\n"
+            f"🎬 **Merging in progress...**"
+        )
+        
+        # Perform merge using enhanced FFmpeg
+        merged_video_path = await MergeVideo(
+            input_file=input_file,
+            user_id=user_id,
+            message=cb.message,
+            format_="mkv"
+        )
+        
+        if merged_video_path is None:
+            await cb.message.edit_text(
+                f"❌ **Video Merging Failed!**\n\n"
+                f"🚨 **FFmpeg processing error**\n"
+                f"💡 **This might be due to:**\n"
+                f"• Incompatible video formats\n"
+                f"• Corrupted source files\n"
+                f"• Insufficient system resources\n\n"
+                f"🔄 **Please try again with different videos**"
+            )
+            user_processes[user_id] = False
+            await delete_all(user_dir)
+            return
+        
+        # PHASE 3: Prepare for upload
+        file_size = os.path.getsize(merged_video_path)
+        final_filename = f"Professional_Merged_Video_{int(time.time())}.mkv"
+        final_path = f"{user_dir}/{final_filename}"
+        
+        # Rename merged file
+        os.rename(merged_video_path, final_path)
+        
+        await cb.message.edit_text(
+            f"✅ **Phase 2: Merge Completed Successfully!**\n\n"
+            f"🎬 **Professional high-quality video ready**\n"
+            f"📁 **File:** `{final_filename}`\n"
+            f"📊 **Size:** `{get_readable_file_size(file_size)}`\n"
+            f"⏱ **Duration:** ~`{get_readable_time(duration)}`\n\n"
+            f"📤 **Ready for Phase 3: Upload destination choice**"
+        )
+        
+        await asyncio.sleep(2)
+        
+        # Check file size limits and offer appropriate options
+        if file_size > 2044723200 and not Config.IS_PREMIUM:  # 2GB limit
+            await cb.message.edit_text(
+                f"📊 **File Size Analysis**\n\n"
+                f"📁 **Merged Video:** `{final_filename}`\n"
+                f"📊 **Size:** `{get_readable_file_size(file_size)}`\n"
+                f"🚫 **Telegram Limit:** 2GB (Standard)\n\n"
+                f"💡 **Recommended Solution:**\n"
+                f"• **GoFile Upload:** Unlimited size\n"
+                f"• **Professional Quality:** No compression\n\n"
+                f"**Choose your upload method:**",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔗 GoFile Upload (Recommended)", callback_data="upload_to_gofile")],
+                    [InlineKeyboardButton("📞 Contact for Premium", url=f"https://t.me/{Config.OWNER_USERNAME}")],
+                    [InlineKeyboardButton("❌ Cancel", callback_data="cancel_upload")]
+                ])
+            )
+        else:
+            # Show upload destination choice
+            await cb.message.edit_text(
+                f"🎉 **Phase 3: Professional Upload Ready**\n\n"
+                f"🎬 **Merge completed with high quality**\n"
+                f"📁 **File:** `{final_filename}`\n"
+                f"📊 **Size:** `{get_readable_file_size(file_size)}`\n"
+                f"⏱ **Duration:** `{get_readable_time(duration)}`\n\n"
+                f"**Choose your preferred upload destination:**",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📤 Telegram Upload", callback_data="upload_to_telegram"),
+                     InlineKeyboardButton("🔗 GoFile Upload", callback_data="upload_to_gofile")],
+                    [InlineKeyboardButton("📊 Compare Options", callback_data="compare_upload_options")],
+                    [InlineKeyboardButton("❌ Cancel", callback_data="cancel_upload")]
+                ])
+            )
+        
+        LOGGER.info(f"✅ Enhanced merge process completed successfully for user {user_id}")
+        
+    except Exception as e:
+        LOGGER.error(f"❌ Enhanced merge process error for user {user_id}: {e}")
+        user_processes[user_id] = False
+        
+        await cb.message.edit_text(
+            f"❌ **Enhanced Merge Process Failed**\n\n"
+            f"🚨 **Error:** `{type(e).__name__}: {str(e)}`\n\n"
+            f"💡 **Possible solutions:**\n"
+            f"• Check internet connection\n"
+            f"• Verify video file integrity\n" 
+            f"• Try with fewer files\n"
+            f"• Contact support if issue persists\n\n"
+            f"📞 **Support:** @{Config.OWNER_USERNAME}",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Try Again", callback_data="merge")],
+                [InlineKeyboardButton("🔙 Back to Main", callback_data="start")]
+            ])
+        )
+        
+        # Cleanup on error
+        await delete_all(f"downloads/{user_id}")
+
+# Traditional merge function for backward compatibility
 async def mergeNow(c: Client, cb: CallbackQuery, new_file_name: str):
-    """Professional merge function with enhanced process management"""
+    """Traditional merge function - Enhanced with better error handling"""
     user_id = cb.from_user.id
     
     # Check if user already has a process running
-    if user_id in user_processes and user_processes[user_id]:
+    if user_id in user_processes and user_processes.get(user_id):
         await cb.answer(
             "⚠️ **Process Already Running!**\n\n"
             "Please wait for your current merge to complete before starting a new one.",
@@ -32,356 +306,33 @@ async def mergeNow(c: Client, cb: CallbackQuery, new_file_name: str):
         )
         return
     
+    # Get queue data for backward compatibility
+    queue_data = queueDB.get(user_id, {"videos": [], "urls": [], "subtitles": [], "audios": []})
+    videos = queue_data.get("videos", [])
+    urls = queue_data.get("urls", [])
+    
+    if len(videos) + len(urls) < 2:
+        await cb.answer("❌ Need at least 2 videos/URLs to merge!", show_alert=True)
+        return
+    
     # Mark user as having an active process
     user_processes[user_id] = True
     
-    try:
-        LOGGER.info(f"🔄 Starting merge process for user {user_id}")
-        
-        omess = cb.message.reply_to_message
-        vid_list = []
-        sub_list = []
-        sIndex = 0
-        await cb.message.edit("⭕ **Initializing Professional Merge Process...**")
-        duration = 0
-        
-        list_message_ids = queueDB.get(cb.from_user.id, {}).get("videos", [])
-        list_message_ids.sort()
-        list_subtitle_ids = queueDB.get(cb.from_user.id, {}).get("subtitles", [])
-        
-        LOGGER.info(f"📊 Premium Status: {Config.IS_PREMIUM}")
-        LOGGER.info(f"📹 Videos: {list_message_ids}")
-        LOGGER.info(f"📝 Subtitles: {list_subtitle_ids}")
-        
-        if not list_message_ids:
-            await cb.answer("❌ **No videos found in queue!**", show_alert=True)
-            await cb.message.delete(True)
-            return
-        
-        # Create user download directory
-        user_dir = f"downloads/{user_id}"
-        if not os.path.exists(user_dir):
-            os.makedirs(user_dir)
-        
-        input_file = f"{user_dir}/input.txt"
-        total_videos = len(list_message_ids)
-        current_video = 1
-        
-        # Process each video
-        for message_id in list_message_ids:
-            try:
-                # Get message
-                message = await c.get_messages(chat_id=cb.from_user.id, message_ids=message_id)
-                media = message.video or message.document
-                
-                if not media:
-                    continue
-                
-                # Update progress
-                await cb.message.edit(
-                    f"📥 **Downloading Video {current_video}/{total_videos}**\n\n"
-                    f"📁 **File:** `{media.file_name}`\n"
-                    f"📊 **Size:** `{get_readable_file_size(media.file_size)}`\n"
-                    f"⏳ **Please wait...**"
-                )
-                
-                LOGGER.info(f"📥 Downloading: {media.file_name}")
-                await asyncio.sleep(2)
-                
-                # Download video
-                file_dl_path = None
-                sub_dl_path = None
-                
-                try:
-                    c_time = time.time()
-                    prog = Progress(cb.from_user.id, c, cb.message)
-                    
-                    download_path = f"{user_dir}/{message.id}/vid.mkv"
-                    os.makedirs(os.path.dirname(download_path), exist_ok=True)
-                    
-                    file_dl_path = await c.download_media(
-                        message=media,
-                        file_name=download_path,
-                        progress=prog.progress_for_pyrogram,
-                        progress_args=(
-                            f"🚀 **Downloading:** `{media.file_name}`",
-                            c_time,
-                            f"\n**Progress: {current_video}/{total_videos}**"
-                        ),
-                    )
-                    
-                    # Check if process was cancelled
-                    if gDict[cb.message.chat.id] and cb.message.id in gDict[cb.message.chat.id]:
-                        return
-                    
-                    await cb.message.edit(
-                        f"✅ **Downloaded Successfully!**\n\n"
-                        f"📁 **File:** `{media.file_name}`\n"
-                        f"📊 **Size:** `{get_readable_file_size(media.file_size)}`"
-                    )
-                    
-                    LOGGER.info(f"✅ Downloaded: {media.file_name}")
-                    await asyncio.sleep(2)
-                    
-                except UnknownError as e:
-                    LOGGER.warning(f"⚠️ Unknown error during download: {e}")
-                    continue
-                except Exception as downloadErr:
-                    LOGGER.error(f"❌ Download failed: {downloadErr}")
-                    # Remove failed video from queue
-                    try:
-                        queueDB.get(cb.from_user.id)["videos"].remove(message_id)
-                    except:
-                        pass
-                    await cb.message.edit("❗ **File skipped due to download error**")
-                    await asyncio.sleep(3)
-                    continue
-                
-                # Handle subtitles if available
-                if sIndex < len(list_subtitle_ids) and list_subtitle_ids[sIndex] is not None:
-                    try:
-                        sub_message = await c.get_messages(
-                            chat_id=cb.from_user.id, 
-                            message_ids=list_subtitle_ids[sIndex]
-                        )
-                        
-                        sub_dl_path = await c.download_media(
-                            message=sub_message,
-                            file_name=f"{user_dir}/{sub_message.id}/",
-                        )
-                        
-                        LOGGER.info(f"📝 Got subtitle: {sub_message.document.file_name}")
-                        
-                        # Merge subtitle with video
-                        file_dl_path = await MergeSub(file_dl_path, sub_dl_path, cb.from_user.id)
-                        LOGGER.info("✅ Subtitle merged successfully")
-                        
-                    except Exception as e:
-                        LOGGER.warning(f"⚠️ Subtitle processing failed: {e}")
-                
-                sIndex += 1
-                
-                # Extract metadata and add to video list
-                try:
-                    metadata = extractMetadata(createParser(file_dl_path))
-                    if metadata and metadata.has("duration"):
-                        duration += metadata.get("duration").seconds
-                    vid_list.append(f"file '{file_dl_path}'")
-                except Exception as e:
-                    LOGGER.error(f"❌ Metadata extraction failed: {e}")
-                    await cleanup_user_data(cb.from_user.id)
-                    await cb.message.edit("⚠️ **Video file is corrupted or unsupported**")
-                    return
-                
-                current_video += 1
-                
-            except Exception as e:
-                LOGGER.error(f"❌ Error processing video {current_video}: {e}")
-                current_video += 1
-                continue
-        
-        # Remove duplicates from video list
-        vid_list = list(dict.fromkeys(vid_list))
-        
-        if not vid_list:
-            await cleanup_user_data(cb.from_user.id)
-            await cb.message.edit("❌ **No valid videos found for merging**")
-            return
-        
-        LOGGER.info(f"🔀 Merging {len(vid_list)} videos for user {cb.from_user.id}")
-        await cb.message.edit(
-            f"🔀 **Merging {len(vid_list)} Videos...**\n\n"
-            f"⚡ **Using Professional Quality Settings**\n"
-            f"⏳ **Please wait, this may take a while...**"
-        )
-        
-        # Create input file for FFmpeg
-        with open(input_file, "w") as f:
-            f.write("\n".join(vid_list))
-        
-        # Merge videos
-        merged_video_path = await MergeVideo(
-            input_file=input_file, 
-            user_id=cb.from_user.id, 
-            message=cb.message, 
-            format_="mkv"
-        )
-        
-        if merged_video_path is None:
-            await cb.message.edit("❌ **Video merging failed!**")
-            await cleanup_user_data(cb.from_user.id)
-            return
-        
-        try:
-            await cb.message.edit("✅ **Videos Merged Successfully!**")
-        except MessageNotModified:
-            await cb.message.edit("Videos Merged Successfully! ✅")
-        
-        LOGGER.info(f"✅ Video merged successfully for: {cb.from_user.first_name}")
-        await asyncio.sleep(3)
-        
-        # Rename merged file
-        file_size = os.path.getsize(merged_video_path)
-        os.rename(merged_video_path, new_file_name)
-        
-        await cb.message.edit(
-            f"🔄 **File Renamed Successfully**\n\n"
-            f"📁 **New Name:** `{os.path.basename(new_file_name)}`\n"
-            f"📊 **Size:** `{get_readable_file_size(file_size)}`"
-        )
-        await asyncio.sleep(3)
-        
-        merged_video_path = new_file_name
-        
-        # Check file size limits
-        if file_size > 2044723200 and not Config.IS_PREMIUM:  # 2GB limit
-            await cb.message.edit(
-                f"📁 **File Size Alert**\n\n"
-                f"📊 **Current Size:** `{get_readable_file_size(file_size)}`\n"
-                f"🚫 **Telegram Limit:** `2GB`\n\n"
-                f"💡 **Solutions:**\n"
-                f"• Use GoFile upload option (unlimited)\n"
-                f"• Contact @{Config.OWNER_USERNAME} for premium access\n"
-                f"• Try compressing the video"
-            )
-            
-            # Offer GoFile upload option
-            if Config.GOFILE_TOKEN:
-                UPLOAD_TO_DRIVE[str(user_id)] = True
-            else:
-                await cleanup_user_data(cb.from_user.id)
-                return
-        
-        if Config.IS_PREMIUM and file_size > 4241280205:  # 4GB limit
-            await cb.message.edit(
-                f"📁 **File Too Large Even for Premium**\n\n"
-                f"📊 **Current Size:** `{get_readable_file_size(file_size)}`\n"
-                f"🚫 **Premium Limit:** `4GB`\n\n"
-                f"💡 **Solution:** Use GoFile upload (unlimited size)"
-            )
-            
-            if Config.GOFILE_TOKEN:
-                UPLOAD_TO_DRIVE[str(user_id)] = True
-            else:
-                await cleanup_user_data(cb.from_user.id)
-                return
-        
-        # Extract video metadata for upload
-        await cb.message.edit("🎥 **Extracting Video Information...**")
-        duration = 1
-        width = 1280
-        height = 720
-        
-        try:
-            metadata = extractMetadata(createParser(merged_video_path))
-            if metadata:
-                if metadata.has("duration"):
-                    duration = metadata.get("duration").seconds
-                if metadata.has("width"):
-                    width = metadata.get("width")
-                if metadata.has("height"):
-                    height = metadata.get("height")
-        except Exception as e:
-            LOGGER.warning(f"⚠️ Metadata extraction warning: {e}")
-        
-        # Generate or download thumbnail
-        video_thumbnail = None
-        try:
-            user = UserSettings(cb.from_user.id, cb.from_user.first_name)
-            thumb_id = user.thumbnail
-            
-            if thumb_id:
-                video_thumbnail = f"{user_dir}_thumb.jpg"
-                await c.download_media(message=str(thumb_id), file_name=video_thumbnail)
-                LOGGER.info("✅ Custom thumbnail downloaded")
-            else:
-                raise Exception("No custom thumbnail")
-                
-        except Exception:
-            LOGGER.info("🖼️ Generating automatic thumbnail")
-            video_thumbnail = await take_screen_shot(
-                merged_video_path, user_dir, (duration / 2)
-            )
-        
-        # Process thumbnail
-        try:
-            if video_thumbnail and os.path.exists(video_thumbnail):
-                thumb = extractMetadata(createParser(video_thumbnail))
-                if thumb:
-                    thumb_height = thumb.get("height", height)
-                    thumb_width = thumb.get("width", width)
-                else:
-                    thumb_height, thumb_width = height, width
-                
-                # Resize thumbnail
-                img = Image.open(video_thumbnail)
-                if thumb_width > thumb_height:
-                    img = img.resize((320, int(320 * thumb_height / thumb_width)))
-                elif thumb_height > thumb_width:
-                    img = img.resize((int(320 * thumb_width / thumb_height), 320))
-                else:
-                    img = img.resize((320, 320))
-                
-                img.save(video_thumbnail)
-                img = Image.open(video_thumbnail).convert("RGB")
-                img.save(video_thumbnail, "JPEG")
-                
-        except Exception as e:
-            LOGGER.warning(f"⚠️ Thumbnail processing failed: {e}")
-            video_thumbnail = None
-        
-        # Upload the merged video
-        upload_success = await uploadVideo(
-            c=c,
-            cb=cb,
-            merged_video_path=merged_video_path,
-            width=width,
-            height=height,
-            duration=duration,
-            video_thumbnail=video_thumbnail,
-            file_size=file_size,
-            upload_mode=UPLOAD_AS_DOC.get(str(cb.from_user.id), False),
-        )
-        
-        if upload_success:
-            await cb.message.delete(True)
-            LOGGER.info(f"✅ Upload completed successfully for user {user_id}")
-        
-        # Cleanup
-        await cleanup_user_data(cb.from_user.id)
-        
-    except Exception as e:
-        LOGGER.error(f"❌ Merge process failed for user {user_id}: {e}")
-        await cb.message.edit(
-            f"❌ **Merge Process Failed!**\n\n"
-            f"🚨 **Error:** `{str(e)}`\n\n"
-            f"💡 **Try Again or Contact:** @{Config.OWNER_USERNAME}"
-        )
-        await cleanup_user_data(cb.from_user.id)
-    finally:
-        # Always clear the user process flag
-        if user_id in user_processes:
-            user_processes[user_id] = False
+    # Use enhanced merge function
+    await mergeNow_enhanced(c, cb, user_id, videos, urls)
 
-async def cleanup_user_data(user_id):
-    """Enhanced cleanup function with comprehensive data removal"""
+async def cleanup_user_data(user_id: int):
+    """Enhanced cleanup function"""
     try:
-        LOGGER.info(f"🧹 Cleaning up data for user {user_id}")
-        
-        # Remove download directory
-        user_dir = f"downloads/{user_id}"
-        if os.path.exists(user_dir):
-            await delete_all(root=user_dir)
-        
-        # Clear database entries
+        # Clear all user-related data
         if user_id in queueDB:
-            queueDB[user_id] = {"videos": [], "subtitles": [], "audios": []}
+            queueDB[user_id] = {"videos": [], "urls": [], "subtitles": [], "audios": []}
         
         if user_id in formatDB:
             formatDB[user_id] = None
             
-        if user_id in replyDB:
-            del replyDB[user_id]
+        if user_id in user_processes:
+            user_processes[user_id] = False
         
         # Clear upload preferences
         user_str = str(user_id)
@@ -391,11 +342,17 @@ async def cleanup_user_data(user_id):
         if user_str in UPLOAD_TO_DRIVE:
             del UPLOAD_TO_DRIVE[user_str]
         
-        # Clear process flag
-        if user_id in user_processes:
-            user_processes[user_id] = False
-            
-        LOGGER.info(f"✅ Cleanup completed for user {user_id}")
+        # Delete download directory
+        await delete_all(root=f"downloads/{user_id}")
+        
+        LOGGER.info(f"🧹 Cleaned up all data for user {user_id}")
         
     except Exception as e:
         LOGGER.error(f"❌ Cleanup error for user {user_id}: {e}")
+
+# Export functions
+__all__ = [
+    'mergeNow_enhanced',
+    'mergeNow', 
+    'cleanup_user_data'
+]
