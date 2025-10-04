@@ -1,42 +1,47 @@
-# FINAL COMPLETE REQUIREMENTS - ALL DEPENDENCIES INCLUDED
-# Tested and Working for Professional Merge Bot
 
-# Core Pyrogram and Telegram
+
+
+# Enhanced Professional Merge Bot - Complete Requirements
+# FileStream Style UI + DDL Support + GoFile Integration
+
+# Core Telegram Bot
 pyrogram==2.0.106
 TgCrypto==1.2.5
 
-# Bot Framework
+# Enhanced Bot Framework
 pyromod==1.5
 python-dotenv==1.0.0
 
-# Image Processing
+# Image & Media Processing
 Pillow==10.0.1
-
-# Video and Media Processing
 hachoir==3.2.0
+
+# Video Processing (Critical Fix)
 ffmpeg-python==0.2.0
 
 # System Monitoring
 psutil==5.9.6
 
-# Database
+# Database Support
 pymongo==4.5.0
 dnspython==2.4.2
 motor==3.3.2
 
-# HTTP and File Operations
+# HTTP Client & File Operations
 aiohttp==3.8.6
 aiofiles==23.2.1
 requests==2.31.0
 
-# Security and Networking
-certifi==2023.7.22
-urllib3==2.0.7
-idna==3.4
-charset-normalizer==3.3.2
-
-# GoFile Integration Support
+# Enhanced Download & Upload Support
 tenacity==8.2.2
+urllib3==2.0.7
+certifi==2023.7.22
+charset-normalizer==3.3.2
+idna==3.4
 
-# Optional Performance Enhancement
+# Performance Enhancement
 ujson==5.8.0
+
+# Additional for DDL & GoFile
+httpx>=0.24.1
+tqdm>=4.65.0
