@@ -83,6 +83,10 @@ class MergeBot(Client):
         super().stop()
         return LOGGER.info("🛑 Bot Stopped")
 
+def delete_all(root):
+    if os.path.exists(root):
+        shutil.rmtree(root)
+
 mergeApp = MergeBot(
     name="merge-bot",
     api_hash=Config.API_HASH,
