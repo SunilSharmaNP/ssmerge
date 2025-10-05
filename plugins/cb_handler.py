@@ -4,9 +4,9 @@ import time
 from pyrogram import Client
 from pyrogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.errors import MessageNotModified
-from plugins.mergeVideoAudio import mergeAudioNow      
-from plugins.mergeVideoSub import mergeSubNow            
-from plugins.streams_extractor import extractStreamsNow 
+from plugins.mergeVideoAudio import mergeAudio      
+from plugins.mergeVideoSub import mergeSub            
+from plugins.streams_extractor import extractStreams
 from bot import UPLOAD_AS_DOC, UPLOAD_TO_DRIVE, delete_all, formatDB, gDict, queueDB, replyDB, LOGGER
 from config import Config
 from helpers.utils import UserSettings
