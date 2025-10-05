@@ -9,6 +9,7 @@ from bot import UPLOAD_AS_DOC, UPLOAD_TO_DRIVE, delete_all, formatDB, gDict, que
 from config import Config
 from helpers.utils import UserSettings
 from plugins.mergeVideo import mergeNow
+from __init__ import MERGE_MODE
 
 # Import GoFile uploader
 try:
