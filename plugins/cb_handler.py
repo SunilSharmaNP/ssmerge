@@ -63,9 +63,78 @@ async def callback_handler(c: Client, cb: CallbackQuery):
         elif data == "close":
             await cb.message.delete()
 
+        elif data == "mode_video":
+            # Video + Video merge
+            UPLOAD_TO_DRIVE.setdefault(str(user_id), False)
+            UPLOAD_AS_DOC.setdefault(str(user_id), False)
+            # Record merge mode (1 = video+video)
+            MERGE_MODE[user_id] = 1
+            await cb.answer("🎥 Mode set: Video + Video", show_alert=False)
+            # Return to settings menu or back to merge prompt
+            await show_settings_menu(cb, user)
+
+        elif data == "mode_audio":
+            # Video + Audio merge
+            UPLOAD_TO_DRIVE.setdefault(str(user_id), False)
+            UPLOAD_AS_DOC.setdefault(str(user_id), False)
+            MERGE_MODE[user_id] = 2
+            await cb.answer("🎵 Mode set: Video + Audio", show_alert=False)
+            await show_settings_menu(cb, user)
+
+        elif data == "mode_subtitle":
+            # Video + Subtitle merge
+            UPLOAD_TO_DRIVE.setdefault(str(user_id), False)
+            UPLOAD_AS_DOC.setdefault(str(user_id), False)
+            MERGE_MODE[user_id] = 3
+            await cb.answer("📝 Mode set: Video + Subtitle", show_alert=False)
+            await show_settings_menu(cb, user)
+
+        elif data == "mode_extract":
+            # Extract streams
+            UPLOAD_TO_DRIVE.setdefault(str(user_id), False)
+            UPLOAD_AS_DOC.setdefault(str(user_id), False)
+            MERGE_MODE[user_id] = 4
+            await cb.answer("🔍 Mode set: Extract Streams", show_alert=False)
+            await show_settings_menu(cb, user)
+
+        elif data == "remove_stream":
+            # Remove last added stream from queue
+            q = queueDB.get(user_id, {})
+            mode = MERGE_MODE.get(user_id, 1)
+            if mode in (1,2,3):
+                # Remove last video for video modes
+                q["videos"].pop() if q["videos"] else None
+            else:
+                # Remove last subtitle/audio for extract mode
+                q["subtitles"].pop() if q["subtitles"] else None
+            queueDB[user_id] = q
+            await cb.answer("🗑️ Last stream removed", show_alert=True)
+            await show_settings_menu(cb, user)
+
+        # ──────────────────────────────────────────────────────────────
+        elif data == "merge":
+            # Start merge based on selected mode
+            from plugins.mergeVideo import mergeNow
+            from plugins.mergeVideoAudio import mergeAudioNow
+            from plugins.mergeVideoSub import mergeSubNow
+            from plugins.streams_extractor import extractStreamsNow
+
+            mode = MERGE_MODE.get(user_id, 1)
+            if mode == 1:
+                await mergeNow(c, cb, f"downloads/{user_id}/merged.mkv")
+            elif mode == 2:
+                await mergeAudioNow(c, cb, f"downloads/{user_id}/merged_audio.mkv")
+            elif mode == 3:
+                await mergeSubNow(c, cb, f"downloads/{user_id}/merged_subtitle.mkv")
+            elif mode == 4:
+                await extractStreamsNow(c, cb)
+            else:
+                await cb.answer("⚠️ Invalid mode", show_alert=True)
+
+        # ──────────────────────────────────────────────────────────────
+
         else:
-            # Handle other callbacks
-            await cb.answer("🚧 Feature under development!", show_alert=True)
+            await cb.answer("🚧 Feature coming soon!", show_alert=True)
 
     except Exception as e:
         LOGGER.error(f"Callback handler error: {e}")
