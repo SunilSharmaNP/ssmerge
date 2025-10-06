@@ -427,3 +427,35 @@ def setup_gofile_config():
     except Exception as e:
         LOGGER.error(f"❌ GoFile API test failed: {e}")
         return False
+
+# Add this function to your uploader.py file
+async def uploadFiles(c, cb, up_path, n, all):
+    """Upload extracted files (audios/subtitles)"""
+    try:
+        LOGGER.info(f"Uploading file {n}/{all}: {up_path}")
+        
+        # Get file info
+        file_size = os.path.getsize(up_path)
+        filename = os.path.basename(up_path)
+        
+        await cb.message.edit(f"📤 Uploading ({n}/{all}): `{filename}`")
+        
+        # Upload as document (extracted files)
+        sent_message = await c.send_document(
+            chat_id=cb.from_user.id,
+            document=up_path,
+            caption=f"📁 **Extracted File**\n\n"
+                   f"📁 **File:** `{filename}`\n"
+                   f"📊 **Size:** `{get_readable_file_size(file_size)}`\n"
+                   f"🔢 **Part:** `{n}/{all}`",
+            progress=upload_progress,
+            progress_args=(cb.message, f"📤 **Uploading {filename}...**", time.time())
+        )
+        
+        return True
+        
+    except Exception as e:
+        LOGGER.error(f"Upload failed for {up_path}: {e}")
+        await cb.message.edit(f"❌ **Upload Failed!**\n\n🚨 **Error:** `{str(e)}`")
+        return False
+
