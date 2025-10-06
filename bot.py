@@ -244,7 +244,7 @@ async def start_handler(c: Client, m: Message):
     ])
     
     await m.reply_photo(
-        photo="https://telegra.ph/file/8c8c10f7b1e04b9b86f72.jpg", # Bot logo
+        photo="https://i.ibb.co/PvC54s2V/Lucid-Origin-I-have-a-Telegram-bot-named-SS-Merger-Bot-and-I-w-3.jpg", # Bot logo
         caption=f"👋 **Hi {m.from_user.first_name}!**\n\n"
         f"🤖 **I Am Video Tool Bot** 🔥\n"
         f"📹 I Can Help You To Manage Your Videos Easily 😊\n\n"
