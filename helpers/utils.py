@@ -1,6 +1,5 @@
-# (c) dishapatel010
+# helpers/utils.py - FIXED VERSION
 import pickle
-import os.path
 import os
 import threading
 import time
@@ -19,22 +18,6 @@ def get_readable_file_size(size_in_bytes) -> str:
         return f"{round(size_in_bytes, 2)}{SIZE_UNITS[index]}"
     except IndexError:
         return "File too large"
-
-def get_mime_type(file_path):
-    mime = 1
-    mime_type = mime.from_file(file_path)
-    mime_type = mime_type or "text/plain"
-    return mime_type
-
-def get_path_size(path: str):
-    if os.path.isfile(path):
-        return os.path.getsize(path)
-    total_size = 0
-    for root, dirs, files in os.walk(path):
-        for f in files:
-            abs_path = os.path.join(root, f)
-            total_size += os.path.getsize(abs_path)
-    return total_size
 
 def get_readable_time(seconds: int) -> str:
     result = ""
@@ -55,6 +38,8 @@ def get_readable_time(seconds: int) -> str:
     return result
 
 class UserSettings(object):
+    """FIXED UserSettings class with proper database persistence"""
+    
     def __init__(self, uid: int, name: str):
         self.user_id: int = uid
         self.name: str = name
@@ -66,15 +51,18 @@ class UserSettings(object):
         self.get()
 
     def get(self):
+        """Get user settings from database"""
         try:
             cur = getUserMergeSettings(self.user_id)
             if cur is not None:
-                self.name = cur["name"]
-                self.merge_mode = cur["user_settings"]["merge_mode"]
-                self.edit_metadata = cur["user_settings"]["edit_metadata"]
-                self.allowed = cur["isAllowed"]
-                self.thumbnail = cur["thumbnail"]
-                self.banned = cur["isBanned"]
+                self.name = cur.get("name", self.name)
+                user_settings = cur.get("user_settings", {})
+                self.merge_mode = user_settings.get("merge_mode", 1)
+                self.edit_metadata = user_settings.get("edit_metadata", False)
+                self.allowed = cur.get("isAllowed", False)
+                self.thumbnail = cur.get("thumbnail", None)
+                self.banned = cur.get("isBanned", False)
+                
                 return {
                     "uid": self.user_id,
                     "name": self.name,
@@ -87,18 +75,33 @@ class UserSettings(object):
                     "thumbnail": self.thumbnail,
                 }
             else:
-                return self.set()  # FIXED: Added proper return
-        except Exception:
+                # New user - set defaults and save
+                return self.set()
+        except Exception as e:
+            # Database error - set defaults and save
+            print(f"Database error in get(): {e}")
             return self.set()
 
     def set(self):
-        setUserMergeSettings(
-            uid=self.user_id,
-            name=self.name,
-            mode=self.merge_mode,
-            edit_metadata=self.edit_metadata,
-            banned=self.banned,
-            allowed=self.allowed,
-            thumbnail=self.thumbnail,
-        )
-        return self.get()
+        """Save user settings to database"""
+        try:
+            setUserMergeSettings(
+                uid=self.user_id,
+                name=self.name,
+                mode=self.merge_mode,
+                edit_metadata=self.edit_metadata,
+                banned=self.banned,
+                allowed=self.allowed,
+                thumbnail=self.thumbnail,
+            )
+            return self.get()
+        except Exception as e:
+            print(f"Database error in set(): {e}")
+            return None
+
+    def is_allowed(self) -> bool:
+        """Check if user is allowed"""
+        return self.allowed and not self.banned
+
+    def __str__(self):
+        return f"UserSettings(uid={self.user_id}, name='{self.name}', allowed={self.allowed}, banned={self.banned})"
