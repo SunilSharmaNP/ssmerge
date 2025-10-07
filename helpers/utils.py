@@ -5,9 +5,8 @@ import os
 import threading
 import time
 from helpers.database import setUserMergeSettings, getUserMergeSettings
-# from magic import Magic
-SIZE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"]
 
+SIZE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"]
 
 def get_readable_file_size(size_in_bytes) -> str:
     if size_in_bytes is None:
@@ -54,17 +53,17 @@ def get_readable_time(seconds: int) -> str:
     seconds = int(seconds)
     result += f"{seconds}s"
     return result
+
 class UserSettings(object):
-    def __init__(self, uid: int, name:str):
+    def __init__(self, uid: int, name: str):
         self.user_id: int = uid
         self.name: str = name
         self.merge_mode: int = 1
         self.edit_metadata: bool = False
         self.allowed: bool = False
         self.thumbnail = None
-        self.banned:bool = False
+        self.banned: bool = False
         self.get()
-        # def __init__(self,uid:int,name:str,merge_mode:int=1,edit_metadata=False) -> None:
 
     def get(self):
         try:
@@ -87,7 +86,8 @@ class UserSettings(object):
                     "isBanned": self.banned,
                     "thumbnail": self.thumbnail,
                 }
-            else: return self.set()
+            else:
+                return self.set()  # FIXED: Added proper return
         except Exception:
             return self.set()
 
