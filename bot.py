@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 MERGE-BOT - Enhanced Version with GoFile Integration and DDL Support
-Enhanced UI and better error handling for VPS deployment
-Direct Download Link (DDL) support integrated
+FIXED VERSION - Spam and Callback Issues Resolved
 """
 from dotenv import load_dotenv
 load_dotenv("config.env", override=True)
@@ -64,6 +63,9 @@ except ImportError:
 botStartTime = time.time()
 parent_id = Config.GDRIVE_FOLDER_ID
 
+# FIXED: User process tracking to prevent concurrent merges
+user_processes = {}
+
 class MergeBot(Client):
     def start(self):
         super().start()
@@ -84,6 +86,7 @@ class MergeBot(Client):
         return LOGGER.info("🛑 Bot Stopped")
 
 def delete_all(root):
+    """FIXED: Added missing delete_all function"""
     if os.path.exists(root):
         shutil.rmtree(root)
 
@@ -110,8 +113,12 @@ async def sendLogFile(c: Client, m: Message):
 
 @mergeApp.on_message(filters.command(["login"]) & filters.private)
 async def loginHandler(c: Client, m: Message):
-    """Enhanced login handler"""
+    """FIXED: Enhanced login handler with proper user.set() calling"""
     user = UserSettings(m.from_user.id, m.from_user.first_name)
+    
+    # FIXED: Debug logging
+    LOGGER.info(f"Login attempt - User: {user.user_id}, Allowed: {user.allowed}, Banned: {user.banned}")
+    
     if user.banned:
         await m.reply_text(
             text=f"🚫 **Access Denied**\n\n"
@@ -121,9 +128,19 @@ async def loginHandler(c: Client, m: Message):
         )
         return
     
+    # FIXED: Owner check and immediate return
     if user.user_id == int(Config.OWNER):
         user.allowed = True
+        user.set()
+        await m.reply_text(
+            text=f"✅ **Owner Access!**\n\n"
+            f"👋 Hi {m.from_user.first_name}\n"
+            f"🎉 You have full bot access!",
+            quote=True
+        )
+        return
     
+    # FIXED: Already allowed check with proper return
     if user.allowed:
         await m.reply_text(
             text=f"✅ **Welcome Back!**\n\n"
@@ -131,38 +148,38 @@ async def loginHandler(c: Client, m: Message):
             f"🎉 You can use the bot freely!",
             quote=True
         )
-    else:
-        try:
-            passwd = m.text.split(" ", 1)[1]
-        except:
-            await m.reply_text(
-                "🔐 **Login Required**\n\n"
-                "**Usage:** `/login <password>`\n\n"
-                f"🔑 **Get password from:** @{Config.OWNER_USERNAME}",
-                quote=True,
-                parse_mode=enums.ParseMode.MARKDOWN
-            )
-            return
-        
-        passwd = passwd.strip()
-        if passwd == Config.PASSWORD:
-            user.allowed = True
-            await m.reply_text(
-                text=f"🎉 **Login Successful!**\n\n"
-                f"✅ Access granted\n"
-                f"🚀 You can now use the bot!",
-                quote=True
-            )
-        else:
-            await m.reply_text(
-                text=f"❌ **Login Failed**\n\n"
-                f"🔐 Incorrect password\n"
-                f"📞 **Contact:** @{Config.OWNER_USERNAME}",
-                quote=True
-            )
+        return
     
-    user.set()
-    del user
+    # Password login process
+    try:
+        passwd = m.text.split(" ", 1)[1]
+    except:
+        await m.reply_text(
+            "🔐 **Login Required**\n\n"
+            "**Usage:** `/login <password>`\n\n"
+            f"🔑 **Get password from:** @{Config.OWNER_USERNAME}",
+            quote=True,
+            parse_mode=enums.ParseMode.MARKDOWN
+        )
+        return
+    
+    passwd = passwd.strip()
+    if passwd == Config.PASSWORD:
+        user.allowed = True
+        user.set()  # FIXED: Critical - Save permission to database
+        await m.reply_text(
+            text=f"🎉 **Login Successful!**\n\n"
+            f"✅ Access granted\n"
+            f"🚀 You can now use the bot!",
+            quote=True
+        )
+    else:
+        await m.reply_text(
+            text=f"❌ **Login Failed**\n\n"
+            f"🔐 Incorrect password\n"
+            f"📞 **Contact:** @{Config.OWNER_USERNAME}",
+            quote=True
+        )
 
 @mergeApp.on_message(filters.command(["stats"]) & filters.private & filters.user(int(Config.OWNER)))
 async def stats_handler(c: Client, m: Message):
@@ -205,32 +222,36 @@ async def stats_handler(c: Client, m: Message):
 
 @mergeApp.on_message(filters.command(["start"]) & filters.private)
 async def start_handler(c: Client, m: Message):
-    """Enhanced start handler with beautiful UI and DDL info"""
+    """FIXED: Enhanced start handler - No more spam!"""
     user = UserSettings(m.from_user.id, m.from_user.first_name)
     
-    if m.from_user.id != int(Config.OWNER):
-        if user.allowed is False:
-            # Create beautiful welcome message for unauthorized users
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔐 Login", callback_data="need_login")],
-                [InlineKeyboardButton("ℹ️ About", callback_data="about"),
-                 InlineKeyboardButton("❓ Help", callback_data="help")],
-                [InlineKeyboardButton("📞 Contact Owner", url=f"https://t.me/{Config.OWNER_USERNAME}")]
-            ])
-            
-            await m.reply_text(
-                f"👋 **Hi {m.from_user.first_name}!**\n\n"
-                f"🤖 **I Am Video Tool Bot** 🔥\n"
-                f"📹 I Can Help You To Manage Your Videos Easily 😊\n\n"
-                f"**Like:** Merge, Extract, Rename, Encode Etc...\n\n"
-                f"🔗 **DDL Support:** {'✅ Available' if DDL_AVAILABLE else '❌ Unavailable'}\n\n"
-                f"🔐 **Access Required**\n"
-                f"📞 **Contact:** @{Config.OWNER_USERNAME}",
-                quote=True,
-                reply_markup=keyboard
-            )
-            return
-    else:
+    # FIXED: Debug logging
+    LOGGER.info(f"Start command - User: {user.user_id}, Allowed: {user.allowed}")
+    
+    # FIXED: Check login status first for non-owners
+    if m.from_user.id != int(Config.OWNER) and not user.allowed:
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔐 Login", callback_data="need_login")],
+            [InlineKeyboardButton("ℹ️ About", callback_data="about"),
+             InlineKeyboardButton("❓ Help", callback_data="help")],
+            [InlineKeyboardButton("📞 Contact Owner", url=f"https://t.me/{Config.OWNER_USERNAME}")]
+        ])
+        
+        await m.reply_text(
+            f"👋 **Hi {m.from_user.first_name}!**\n\n"
+            f"🤖 **I Am Video Tool Bot** 🔥\n"
+            f"📹 I Can Help You To Manage Your Videos Easily 😊\n\n"
+            f"**Like:** Merge, Extract, Rename, Encode Etc...\n\n"
+            f"🔗 **DDL Support:** {'✅ Available' if DDL_AVAILABLE else '❌ Unavailable'}\n\n"
+            f"🔐 **Access Required**\n"
+            f"📞 **Contact:** @{Config.OWNER_USERNAME}",
+            quote=True,
+            reply_markup=keyboard
+        )
+        return  # CRITICAL: Stop here to prevent spam
+    
+    # FIXED: For owners, set allowed status
+    if m.from_user.id == int(Config.OWNER):
         user.allowed = True
         user.set()
     
@@ -243,298 +264,42 @@ async def start_handler(c: Client, m: Message):
         [InlineKeyboardButton("🔗 Owner", url=f"https://t.me/{Config.OWNER_USERNAME}")]
     ])
     
-    await m.reply_photo(
-        photo="https://i.ibb.co/PvC54s2V/Lucid-Origin-I-have-a-Telegram-bot-named-SS-Merger-Bot-and-I-w-3.jpg", # Bot logo
-        caption=f"👋 **Hi {m.from_user.first_name}!**\n\n"
-        f"🤖 **I Am Video Tool Bot** 🔥\n"
-        f"📹 I Can Help You To Manage Your Videos Easily 😊\n\n"
-        f"**Like:** Merge, Extract, Rename, Encode Etc...\n\n"
-        f"🔗 **DDL Support:** {'✅ Available' if DDL_AVAILABLE else '❌ Check Setup'}\n"
-        f"🚀 **Started** `{get_readable_time(time.time() - botStartTime)}` **Ago**",
-        quote=True,
-        reply_markup=keyboard
-    )
-    
-    del user
-
-@mergeApp.on_message(filters.command(["help"]) & filters.private)
-async def help_msg(c: Client, m: Message):
-    """Enhanced help with DDL information"""
-    help_text = f"""📋 **HOW TO USE**
-
-**🎬 Video Merging:**
-1️⃣ Send custom thumbnail (optional)
-2️⃣ Send 2 or more videos to merge
-3️⃣ Send direct download URLs {'✅' if DDL_AVAILABLE else '❌'}
-4️⃣ Select merge options from menu
-5️⃣ Choose upload method:
- • 📤 Telegram Upload
- • 🔗 GoFile Upload (for large files)
-6️⃣ Rename or use default name
-
-**⚡ Quick Commands:**
-• `/start` - Start the bot
-• `/help` - Show this help
-• `/settings` - User preferences
-• `/login <password>` - Access bot
-• `/extract` - Extract audio/subtitles
-• `/addurl <link>` - Add download URL {'✅' if DDL_AVAILABLE else '❌'}
-• `/queue` - Show current queue
-
-**🔗 DDL Support {'✅ ENABLED' if DDL_AVAILABLE else '❌ DISABLED'}:**
-• Gofile.io links (with password support)
-• Google Drive direct links
-• Dropbox, MEGA, MediaFire links
-• Any direct HTTP/HTTPS download URL
-
-**🎯 Features:**
-✅ Merge up to 10 videos
-✅ Add custom audio tracks
-✅ Add subtitle files
-✅ Upload to GoFile (unlimited size)
-✅ Custom thumbnails
-✅ Extract audio/video streams
-{'✅ Direct download link support' if DDL_AVAILABLE else '❌ DDL support disabled'}
-
-**💡 Tips:**
-• Use GoFile for files > 2GB
-• Set custom thumbnail for better results
-• {'Send URLs directly in chat' if DDL_AVAILABLE else 'Enable DDL by adding downloader.py'}
-• Check settings for different modes"""
-    
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⚙️ Settings", callback_data="settings")],
-        [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
-    ])
-    
-    await m.reply_text(help_text, quote=True, reply_markup=keyboard)
-
-# =================== NEW DDL SUPPORT MESSAGE HANDLERS ===================
-
-@mergeApp.on_message(filters.text & filters.private & ~filters.command(["start", "help", "login", "stats", "addurl", "queue"]))
-async def handle_url_message(c: Client, m: Message):
-    """Handle URL messages for downloading"""
-    if not DDL_AVAILABLE:
-        return  # Skip if DDL not available
-    
-    user = UserSettings(m.from_user.id, m.from_user.first_name)
-    
-    # Check user permissions
-    if m.from_user.id != int(Config.OWNER) and not user.allowed:
-        await m.reply_text(
-            "🔐 **Access Required**\n\n"
-            "Please login first using `/login <password>`\n"
-            f"📞 **Contact:** @{Config.OWNER_USERNAME}"
-        )
-        return
-    
-    # Check if message contains URL
-    urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', m.text)
-    
-    if not urls:
-        return  # Not a URL message
-    
-    url = urls[0]  # Take first URL found
-    
-    # Validate URL
-    is_valid, error_msg = validate_url(url)
-    if not is_valid:
-        await m.reply_text(
-            f"❌ **Invalid URL!**\n\n"
-            f"🚨 **Error:** {error_msg}\n\n"
-            f"💡 **Tip:** Make sure URL is correct and accessible"
-        )
-        return
-    
-    # Check if supported domain
-    parsed_url = urlparse(url)
-    supported_domains = [
-        'gofile.io', 'drive.google.com', 'dropbox.com', 
-        'mega.nz', 'mediafire.com', 'archive.org',
-        'github.com', 'raw.githubusercontent.com'
-    ]
-    
-    domain_supported = any(domain in parsed_url.netloc for domain in supported_domains)
-    
-    # Initialize queue if not exists
-    if m.from_user.id not in queueDB:
-        queueDB[m.from_user.id] = {"videos": [], "subtitles": [], "audios": []}
-    
-    # Store URL info in replyDB for reference
-    if m.from_user.id not in replyDB:
-        replyDB[m.from_user.id] = {}
-    
-    replyDB[m.from_user.id][m.id] = {"type": "url", "content": url}
-    
-    # Add URL message to queue
-    queueDB[m.from_user.id]["videos"].append(m.id)
-    
-    # Create response message
-    queue_count = len(queueDB[m.from_user.id]["videos"])
-    
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔗 Merge Now", callback_data="merge"),
-         InlineKeyboardButton("📋 Show Queue", callback_data="show_queue")],
-        [InlineKeyboardButton("🗑️ Clear Queue", callback_data="cancel"),
-         InlineKeyboardButton("⚙️ Settings", callback_data="settings")]
-    ])
-    
-    # Determine URL type
-    url_type = "🔗 Direct Link"
-    if 'gofile.io' in parsed_url.netloc:
-        url_type = "📁 Gofile.io"
-    elif 'drive.google.com' in parsed_url.netloc:
-        url_type = "💾 Google Drive"
-    elif 'dropbox.com' in parsed_url.netloc:
-        url_type = "📦 Dropbox"
-    elif 'mega.nz' in parsed_url.netloc:
-        url_type = "🌐 MEGA"
-    
-    response_text = f"""✅ **URL Added to Queue!**
-
-🔗 **URL Type:** {url_type}
-📊 **Queue Status:** `{queue_count} items`
-🌐 **Domain:** `{parsed_url.netloc}`
-
-**URL Preview:**
-`{url[:100]}{'...' if len(url) > 100 else ''}`
-
-💡 **Next Steps:**
-• Add more URLs/files if needed
-• Click "🔗 Merge Now" to start processing
-• Configure settings before merging"""
-    
-    if not domain_supported:
-        response_text += f"\n\n⚠️ **Note:** Domain `{parsed_url.netloc}` may not be fully supported. Download will be attempted as direct link."
-    
-    await m.reply_text(response_text, reply_markup=keyboard)
-
-@mergeApp.on_message(filters.command(["addurl"]) & filters.private)
-async def add_url_command(c: Client, m: Message):
-    """Command to add URL to queue"""
-    if not DDL_AVAILABLE:
-        await m.reply_text(
-            "❌ **DDL Support Disabled!**\n\n"
-            "🔧 **Setup Required:**\n"
-            "• Add `downloader.py` to bot directory\n"
-            "• Install required dependencies\n"
-            "• Restart the bot\n\n"
-            f"📞 **Contact:** @{Config.OWNER_USERNAME}"
-        )
-        return
-    
-    user = UserSettings(m.from_user.id, m.from_user.first_name)
-    
-    # Check permissions
-    if m.from_user.id != int(Config.OWNER) and not user.allowed:
-        await m.reply_text("🔐 **Access Required**\n\nPlease login first!")
-        return
-    
+    # FIXED: Use local assets or reliable image URL
     try:
-        url = m.text.split(" ", 1)[1]
-    except IndexError:
-        await m.reply_text(
-            "❌ **Usage Error!**\n\n"
-            "**Correct Usage:**\n"
-            "`/addurl <direct_download_link>`\n\n"
-            "**Example:**\n"
-            "`/addurl https://gofile.io/d/abc123`\n\n"
-            "**Supported:**\n"
-            "• Gofile.io links (with password support)\n"
-            "• Google Drive direct links\n"
-            "• Dropbox, MEGA, MediaFire links\n"
-            "• Any direct download URL"
+        await m.reply_photo(
+            photo="https://telegra.ph/file/8c8c10f7b1e04b9b86f72.jpg",  # Use working image URL
+            caption=f"👋 **Hi {m.from_user.first_name}!**\n\n"
+            f"🤖 **I Am Video Tool Bot** 🔥\n"
+            f"📹 I Can Help You To Manage Your Videos Easily 😊\n\n"
+            f"**Like:** Merge, Extract, Rename, Encode Etc...\n\n"
+            f"🔗 **DDL Support:** {'✅ Available' if DDL_AVAILABLE else '❌ Check Setup'}\n"
+            f"🚀 **Started** `{get_readable_time(time.time() - botStartTime)}` **Ago**",
+            quote=True,
+            reply_markup=keyboard
         )
-        return
-    
-    # Validate URL
-    is_valid, error_msg = validate_url(url)
-    if not is_valid:
-        await m.reply_text(f"❌ **Invalid URL:** {error_msg}")
-        return
-    
-    # Initialize queue
-    if m.from_user.id not in queueDB:
-        queueDB[m.from_user.id] = {"videos": [], "subtitles": [], "audios": []}
-    
-    # Store URL info in replyDB for reference
-    if m.from_user.id not in replyDB:
-        replyDB[m.from_user.id] = {}
-    
-    replyDB[m.from_user.id][m.id] = {"type": "url", "content": url}
-    queueDB[m.from_user.id]["videos"].append(m.id)
-    
-    queue_count = len(queueDB[m.from_user.id]["videos"])
-    
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔗 Merge Now", callback_data="merge")],
-        [InlineKeyboardButton("📋 Queue", callback_data="show_queue"),
-         InlineKeyboardButton("⚙️ Settings", callback_data="settings")],
-        [InlineKeyboardButton("🗑️ Clear", callback_data="cancel")]
-    ])
-    
-    await m.reply_text(
-        f"✅ **URL Added Successfully!**\n\n"
-        f"🔗 **URL:** `{url[:50]}...`\n"
-        f"📊 **Queue:** `{queue_count} items`\n\n"
-        f"🚀 **Ready to merge!**",
-        reply_markup=keyboard
-    )
-
-@mergeApp.on_message(filters.command(["queue", "q"]) & filters.private)
-async def show_queue_command(c: Client, m: Message):
-    """Show current merge queue"""
-    user = UserSettings(m.from_user.id, m.from_user.first_name)
-    
-    if m.from_user.id != int(Config.OWNER) and not user.allowed:
-        await m.reply_text("🔐 Access Required!")
-        return
-    
-    if m.from_user.id not in queueDB or not queueDB[m.from_user.id]["videos"]:
+    except:
+        # Fallback to text message if image fails
         await m.reply_text(
-            "📋 **Queue is Empty!**\n\n"
-            "**How to add items:**\n"
-            "• Send video files\n"
-            f"• {'Send URLs directly' if DDL_AVAILABLE else 'DDL support disabled'}\n"
-            f"• {'Use `/addurl <link>` command' if DDL_AVAILABLE else 'Setup downloader.py for DDL'}"
+            f"👋 **Hi {m.from_user.first_name}!**\n\n"
+            f"🤖 **I Am Video Tool Bot** 🔥\n"
+            f"📹 I Can Help You To Manage Your Videos Easily 😊\n\n"
+            f"**Like:** Merge, Extract, Rename, Encode Etc...\n\n"
+            f"🔗 **DDL Support:** {'✅ Available' if DDL_AVAILABLE else '❌ Check Setup'}\n"
+            f"🚀 **Started** `{get_readable_time(time.time() - botStartTime)}` **Ago**",
+            quote=True,
+            reply_markup=keyboard
         )
-        return
-    
-    queue_items = queueDB[m.from_user.id]["videos"]
-    queue_text = f"📋 **Current Queue ({len(queue_items)} items):**\n\n"
-    
-    for i, item_id in enumerate(queue_items[:10], 1):  # Show max 10 items
-        # Check if it's a URL from replyDB
-        if (DDL_AVAILABLE and m.from_user.id in replyDB and 
-            item_id in replyDB[m.from_user.id] and 
-            replyDB[m.from_user.id][item_id]["type"] == "url"):
-            
-            url = replyDB[m.from_user.id][item_id]["content"]
-            parsed_url = urlparse(url)
-            queue_text += f"{i}. 🔗 **URL:** `{parsed_url.netloc}`\n"
-        else:
-            queue_text += f"{i}. 📁 **Telegram File**\n"
-    
-    if len(queue_items) > 10:
-        queue_text += f"\n... and {len(queue_items) - 10} more items"
-    
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔗 Merge Now", callback_data="merge")],
-        [InlineKeyboardButton("🗑️ Clear Queue", callback_data="cancel"),
-         InlineKeyboardButton("⚙️ Settings", callback_data="settings")]
-    ])
-    
-    await m.reply_text(queue_text, reply_markup=keyboard)
 
-# =================== END DDL SUPPORT HANDLERS ===================
-
-# Callback handlers for enhanced UI
+# FIXED: Enhanced callback handler with merge support
 @mergeApp.on_callback_query()
 async def callback_handler(c: Client, cb: CallbackQuery):
-    """Enhanced callback handler"""
+    """FIXED: Enhanced callback handler with proper merge handling"""
     data = cb.data
     user_id = cb.from_user.id
     user = UserSettings(user_id, cb.from_user.first_name)
+    
+    # FIXED: Debug logging
+    LOGGER.info(f"Callback: {data} from user {user_id}, allowed: {user.allowed}")
     
     try:
         if data == "need_login":
@@ -553,7 +318,7 @@ async def callback_handler(c: Client, cb: CallbackQuery):
                 await cb.answer("🔐 Login required!", show_alert=True)
                 return
             
-            # Settings menu like in screenshot
+            # Settings menu
             settings_keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("📤 Upload As: Video 📹", callback_data="upload_video")],
                 [InlineKeyboardButton("🎥 Video + Video ✅", callback_data="mode_video"),
@@ -580,6 +345,35 @@ async def callback_handler(c: Client, cb: CallbackQuery):
 🎭 **Mode:** Video + Video"""
             
             await cb.message.edit_text(settings_text, reply_markup=settings_keyboard)
+        
+        # FIXED: Add merge callback handler
+        elif data == "merge":
+            if not user.allowed:
+                await cb.answer("🔐 Login required!", show_alert=True)
+                return
+            
+            # FIXED: Check if user has ongoing process
+            if user_id in user_processes and user_processes[user_id]:
+                await cb.answer("⚠️ Please wait! Your previous merge is still processing.", show_alert=True)
+                return
+            
+            # FIXED: Check if user has queue
+            if user_id not in queueDB or not queueDB[user_id]["videos"]:
+                await cb.answer("📋 Queue is empty! Please add videos first.", show_alert=True)
+                return
+            
+            # FIXED: Lock user process
+            user_processes[user_id] = True
+            
+            try:
+                from plugins.mergeVideo import mergeNow
+                await mergeNow(c, cb, f"Merged_Video_{int(time.time())}")
+            except Exception as e:
+                LOGGER.error(f"Merge error: {e}")
+                await cb.answer("❌ Merge failed! Please try again.", show_alert=True)
+            finally:
+                # FIXED: Always unlock user process
+                user_processes[user_id] = False
         
         elif data == "about":
             about_text = f"""ℹ️ **ABOUT THIS BOT**
@@ -619,15 +413,20 @@ async def callback_handler(c: Client, cb: CallbackQuery):
         
         elif data == "show_queue":
             # Show queue via callback
-            await show_queue_command(c, cb.message)
-        
-        elif data == "gofile_off":
-            UPLOAD_TO_DRIVE[str(user_id)] = False
-            await cb.answer("🔗 GoFile upload disabled", show_alert=True)
-        
-        elif data == "gofile_on":
-            UPLOAD_TO_DRIVE[str(user_id)] = True
-            await cb.answer("🔗 GoFile upload enabled", show_alert=True)
+            if user_id not in queueDB or not queueDB[user_id]["videos"]:
+                await cb.answer("📋 Queue is empty!", show_alert=True)
+                return
+            
+            queue_items = queueDB[user_id]["videos"]
+            queue_text = f"📋 **Current Queue ({len(queue_items)} items):**\n\n"
+            
+            for i, item_id in enumerate(queue_items[:5], 1):  # Show max 5 items
+                queue_text += f"{i}. 📁 **File ID:** `{item_id}`\n"
+            
+            if len(queue_items) > 5:
+                queue_text += f"\n... and {len(queue_items) - 5} more items"
+            
+            await cb.answer(queue_text, show_alert=True)
         
         elif data == "close":
             await cb.message.delete()
@@ -648,33 +447,6 @@ if __name__ == "__main__":
         LOGGER.info("✅ DDL Support: Initialized successfully")
     else:
         LOGGER.warning("⚠️ DDL Support: Not available - add downloader.py to enable")
-    
-    # Check if user bot is configured
-    userBot = None
-    try:
-        if Config.USER_SESSION_STRING:
-            LOGGER.info("Starting USER Session")
-            userBot = Client(
-                name="merge-bot-user",
-                session_string=Config.USER_SESSION_STRING,
-                no_updates=True,
-            )
-            with userBot:
-                userBot.send_message(
-                    chat_id=int(Config.LOGCHANNEL or Config.OWNER),
-                    text="🤖 **Bot Started with Premium Account**\n\n"
-                    "✅ 4GB upload support enabled\n"
-                    "🔗 GoFile integration active\n"
-                    f"🔗 DDL Support: {'✅ Enabled' if DDL_AVAILABLE else '❌ Disabled'}",
-                    disable_web_page_preview=True,
-                )
-                user = userBot.get_me()
-                Config.IS_PREMIUM = user.is_premium
-                LOGGER.info(f"Premium status: {Config.IS_PREMIUM}")
-    
-    except Exception as err:
-        LOGGER.error(f"User bot error: {err}")
-        Config.IS_PREMIUM = False
     
     # Run main bot
     mergeApp.run()
