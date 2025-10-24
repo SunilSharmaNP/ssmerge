@@ -143,11 +143,11 @@ async def start_handler(c: Client, m: Message):
         ])
         
         await m.reply_text(
-            f"👋 **Hi {m.from_user.first_name}!**\n\n"
-            "🤖 **I Am Video Merge Bot** 🔥\n"
-            "📹 I Can Help You Merge Videos Easily 😊\n\n"
-            "🔐 **Access Required**\n"
-            f"📞 Contact: @{Config.OWNER_USERNAME}",
+            f"👋 **Welcome {m.from_user.first_name}!**\n\n"
+            "🤖 **Professional Video Tools Bot**\n"
+            "📹 Advanced video processing and manipulation tools\n\n"
+            "🔐 **Login Required for Access**\n"
+            f"📞 Contact owner: @{Config.OWNER_USERNAME}",
             quote=True,
             reply_markup=keyboard
         )
@@ -167,11 +167,12 @@ async def start_handler(c: Client, m: Message):
     ])
     
     await m.reply_text(
-        f"👋 **Hi {m.from_user.first_name}!**\n\n"
-        "🤖 **I Am Video Merge Bot** 🔥\n"
-        "📹 I Can Help You Merge Videos Easily 😊\n\n"
-        "✅ **You are authorized to use this bot**\n"
-        f"🚀 Uptime: `{get_readable_time(time.time() - botStartTime)}`",
+        f"👋 **Welcome {m.from_user.first_name}!**\n\n"
+        "🤖 **Professional Video Tools Bot**\n"
+        "📹 Merge • Encode • Extract • Process Videos\n\n"
+        "✅ **Full Access Granted**\n"
+        f"⏱ **Bot Uptime:** `{get_readable_time(time.time() - botStartTime)}`\n\n"
+        "💡 **Tip:** Use /help to see available commands",
         quote=True,
         reply_markup=keyboard
     )
@@ -437,7 +438,12 @@ async def help_handler(c: Client, m: Message):
 • `/help` - Show this help
 • `/settings` - User preferences
 
-**Support:** Contact @{Config.OWNER_USERNAME}"""
+**Support:** Contact @{Config.OWNER_USERNAME}
+
+💡 **Quick Start:**
+• Send 2+ videos to merge
+• Use /settings for preferences
+• Check /about for features"""
     
     await m.reply_text(help_text, quote=True)
 

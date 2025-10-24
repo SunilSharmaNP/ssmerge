@@ -66,37 +66,81 @@ async def callback_handler(c: Client, cb: CallbackQuery):
         elif data == "close":
             await cb.message.delete()
 
+        elif data == "toggle_upload_mode":
+            # Toggle between Video and Document upload - SAVE TO DATABASE
+            user.upload_as_doc = not user.upload_as_doc
+            user.set()  # Save to database
+            UPLOAD_AS_DOC[str(user_id)] = user.upload_as_doc  # Sync with in-memory dict
+            mode_name = "Document" if user.upload_as_doc else "Video"
+            await cb.answer(f"📤 Upload mode changed to: {mode_name}", show_alert=False)
+            await show_settings_menu(cb, user)
+        
+        elif data == "metadata_toggle":
+            # Toggle metadata editing
+            from helpers.database import enableMetadataToggle
+            user.edit_metadata = not user.edit_metadata
+            user.set()  # Save to database
+            enableMetadataToggle(user_id, user.edit_metadata)
+            status = "Enabled" if user.edit_metadata else "Disabled"
+            await cb.answer(f"📊 Metadata editing {status}", show_alert=False)
+            await show_settings_menu(cb, user)
+        
+        elif data == "thumbnail_toggle":
+            # Information about thumbnail
+            if user.thumbnail:
+                await cb.answer("🖼️ Thumbnail is set. Send a photo to update it.", show_alert=True)
+            else:
+                await cb.answer("🖼️ No thumbnail set. Send a photo to set one.", show_alert=True)
+        
+        elif data == "clear_queue":
+            # Clear user queue
+            if user_id in queueDB:
+                queueDB[user_id] = {"videos": [], "subtitles": [], "audios": []}
+                await cb.answer("🗑️ Queue cleared successfully!", show_alert=True)
+            else:
+                await cb.answer("📋 Queue is already empty!", show_alert=True)
+            await show_settings_menu(cb, user)
+        
+        elif data == "rename_file":
+            await cb.answer("✏️ Rename feature - Send custom filename after starting merge", show_alert=True)
+        
         elif data == "mode_video":
-            # Video + Video merge
+            # Video + Video merge - SAVE TO DATABASE
             UPLOAD_TO_DRIVE.setdefault(str(user_id), False)
             UPLOAD_AS_DOC.setdefault(str(user_id), False)
-            # Record merge mode (1 = video+video)
             MERGE_MODE[user_id] = 1
+            user.merge_mode = 1
+            user.set()  # Save to database
             await cb.answer("🎥 Mode set: Video + Video", show_alert=False)
-            # Return to settings menu or back to merge prompt
             await show_settings_menu(cb, user)
 
         elif data == "mode_audio":
-            # Video + Audio merge
+            # Video + Audio merge - SAVE TO DATABASE
             UPLOAD_TO_DRIVE.setdefault(str(user_id), False)
             UPLOAD_AS_DOC.setdefault(str(user_id), False)
             MERGE_MODE[user_id] = 2
+            user.merge_mode = 2
+            user.set()  # Save to database
             await cb.answer("🎵 Mode set: Video + Audio", show_alert=False)
             await show_settings_menu(cb, user)
 
         elif data == "mode_subtitle":
-            # Video + Subtitle merge
+            # Video + Subtitle merge - SAVE TO DATABASE
             UPLOAD_TO_DRIVE.setdefault(str(user_id), False)
             UPLOAD_AS_DOC.setdefault(str(user_id), False)
             MERGE_MODE[user_id] = 3
+            user.merge_mode = 3
+            user.set()  # Save to database
             await cb.answer("📝 Mode set: Video + Subtitle", show_alert=False)
             await show_settings_menu(cb, user)
 
         elif data == "mode_extract":
-            # Extract streams
+            # Extract streams - SAVE TO DATABASE
             UPLOAD_TO_DRIVE.setdefault(str(user_id), False)
             UPLOAD_AS_DOC.setdefault(str(user_id), False)
             MERGE_MODE[user_id] = 4
+            user.merge_mode = 4
+            user.set()  # Save to database
             await cb.answer("🔍 Mode set: Extract Streams", show_alert=False)
             await show_settings_menu(cb, user)
 
@@ -245,21 +289,24 @@ async def handle_upload_mode(cb: CallbackQuery, data: str, user_id: int):
         await cb.answer("❌ Error setting upload mode", show_alert=True)
 
 async def handle_gofile_toggle(cb: CallbackQuery, data: str, user_id: int):
-    """Handle GoFile toggle"""
+    """Handle GoFile toggle with database persistence"""
     try:
+        user = UserSettings(user_id, cb.from_user.first_name)
+        
         if not GOFILE_AVAILABLE:
             await cb.answer("❌ GoFile integration not available", show_alert=True)
             return
 
-        if data == "gofile_on":
-            UPLOAD_TO_DRIVE[str(user_id)] = True
-            await cb.answer("🔗 GoFile upload enabled", show_alert=False)
-        else:
-            UPLOAD_TO_DRIVE[str(user_id)] = False
-            await cb.answer("📤 Telegram upload enabled", show_alert=False)
+        # Toggle GoFile status - SAVE TO DATABASE
+        user.upload_to_drive = not user.upload_to_drive
+        user.set()  # Save to database
+        UPLOAD_TO_DRIVE[str(user_id)] = user.upload_to_drive  # Sync with in-memory dict
+        
+        status_text = "enabled" if user.upload_to_drive else "disabled"
+        await cb.answer(f"🔗 GoFile upload {status_text}", show_alert=False)
 
         # Refresh settings menu
-        await show_settings_menu(cb, UserSettings(user_id, cb.from_user.first_name))
+        await show_settings_menu(cb, user)
 
     except Exception as e:
         LOGGER.error(f"GoFile toggle error: {e}")
@@ -320,34 +367,62 @@ async def start_merge_with_name(cb: CallbackQuery, user_id: int, file_name: str)
         )
 
 async def show_settings_menu(cb: CallbackQuery, user: UserSettings):
-    """Show enhanced settings menu like in screenshots"""
+    """Show enhanced settings menu with proper database persistence"""
     try:
-        # Get current settings
-        upload_mode = "Video 📹" if not UPLOAD_AS_DOC.get(str(user.user_id), False) else "Document 📁"
-        gofile_status = "✅" if UPLOAD_TO_DRIVE.get(str(user.user_id), False) else "❌"
+        # Get current settings DIRECTLY FROM DATABASE (UserSettings object)
+        upload_mode = "Document 📁" if user.upload_as_doc else "Video 📹"
+        gofile_status = "Enabled ✅" if user.upload_to_drive else "Disabled ❌"
+        
+        # Sync in-memory dicts with database values for backward compatibility
+        UPLOAD_AS_DOC[str(user.user_id)] = user.upload_as_doc
+        UPLOAD_TO_DRIVE[str(user.user_id)] = user.upload_to_drive
+        
+        # Get merge mode from user settings
+        mode_names = {
+            1: "Video + Video 🎬",
+            2: "Video + Audio 🎵",
+            3: "Video + Subtitle 📝",
+            4: "Extract Streams 🔍"
+        }
+        current_mode = mode_names.get(user.merge_mode, "Video + Video 🎬")
+        
+        # Check metadata status
+        metadata_status = "Enabled ✅" if user.edit_metadata else "Disabled ❌"
+        
+        # Check thumbnail status
+        thumbnail_status = "Set ✅" if user.thumbnail else "Not Set ❌"
 
         settings_keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"📤 Upload As: {upload_mode}", callback_data="toggle_upload_mode")],
-            [InlineKeyboardButton("🎥 Video + Video ✅", callback_data="mode_video"),
-             InlineKeyboardButton("🎵 Video + Audio", callback_data="mode_audio")],
-            [InlineKeyboardButton("📝 Video + Subtitle", callback_data="mode_subtitle"),
+            [InlineKeyboardButton(f"📤 Upload: {upload_mode}", callback_data="toggle_upload_mode")],
+            [InlineKeyboardButton("🎥 Video+Video", callback_data="mode_video"),
+             InlineKeyboardButton("🎵 Video+Audio", callback_data="mode_audio")],
+            [InlineKeyboardButton("📝 Video+Subtitle", callback_data="mode_subtitle"),
              InlineKeyboardButton("🔍 Extract", callback_data="mode_extract")],
-            [InlineKeyboardButton("🗑️ Remove Stream", callback_data="remove_stream"),
+            [InlineKeyboardButton(f"🖼️ Thumbnail: {thumbnail_status}", callback_data="thumbnail_toggle")],
+            [InlineKeyboardButton(f"📊 Metadata: {metadata_status}", callback_data="metadata_toggle")],
+            [InlineKeyboardButton(f"🔗 GoFile: {gofile_status}", callback_data="gofile_toggle")],
+            [InlineKeyboardButton("🗑️ Clear Queue", callback_data="clear_queue"),
              InlineKeyboardButton("✏️ Rename", callback_data="rename_file")],
-            [InlineKeyboardButton("🖼️ Thumbnail ❌", callback_data="thumbnail_toggle")],
-            [InlineKeyboardButton(f"🔗 GoFile {gofile_status}", callback_data="gofile_toggle")],
-            [InlineKeyboardButton("❌ Close", callback_data="close")]
+            [InlineKeyboardButton("🔙 Back", callback_data="back_to_start"),
+             InlineKeyboardButton("❌ Close", callback_data="close")]
         ])
 
-        settings_text = f"""⚙️ **User Settings:**
+        settings_text = f"""⚙️ **USER SETTINGS & PREFERENCES**
 
-👤 **Name:** {user.name}
-🆔 **User ID:** `{user.user_id}`
-📤 **Upload As:** {upload_mode}
-🚫 **Ban Status:** {"True" if user.banned else "False"} {"❌" if user.banned else "✅"}
-🔗 **GoFile:** {gofile_status}
-📊 **Metadata:** False ❌
-🎭 **Mode:** Video + Video"""
+👤 **User:** {user.name}
+🆔 **ID:** `{user.user_id}`
+🔐 **Status:** {"Banned ❌" if user.banned else "Active ✅"}
+
+**📤 UPLOAD SETTINGS:**
+• Upload As: {upload_mode}
+• GoFile Upload: {gofile_status}
+
+**🎬 MERGE SETTINGS:**
+• Current Mode: {current_mode}
+• Metadata Edit: {metadata_status}
+• Custom Thumbnail: {thumbnail_status}
+
+**💡 TIP:** All settings are automatically saved to database"""
 
         await cb.message.edit_text(settings_text, reply_markup=settings_keyboard)
 
@@ -357,27 +432,46 @@ async def show_settings_menu(cb: CallbackQuery, user: UserSettings):
 
 async def show_help_menu(cb: CallbackQuery):
     """Show help menu"""
-    help_text = """❓ **HELP & USAGE**
+    help_text = """❓ **HELP & USER GUIDE**
 
-**🎬 How to Merge Videos:**
-1️⃣ Send videos (2-10 files)
-2️⃣ Click "🔗 Merge Now"
-3️⃣ Choose upload method
-4️⃣ Wait for processing
+**📹 VIDEO MERGING:**
+1️⃣ Send 2 or more video files
+2️⃣ Files will be added to queue automatically
+3️⃣ Click "🔥 Merge Now" button
+4️⃣ Choose your upload preferences
+5️⃣ Wait for processing (may take time for large files)
 
-**📤 Upload Options:**
-• **Telegram:** Direct upload (2GB limit)
-• **GoFile:** External upload (unlimited)
+**📤 UPLOAD METHODS:**
+• **Telegram:** Direct upload to chat (2GB limit for regular users)
+• **GoFile:** External cloud storage (unlimited size, 10-day expiry)
+• **Document Mode:** Upload as file (preserves quality)
+• **Video Mode:** Upload as video (with streaming support)
 
-**⚙️ Settings:**
-• Change upload mode
-• Toggle GoFile upload
-• Set custom thumbnails
+**⚙️ SETTINGS OPTIONS:**
+• Merge Mode: Video+Video / Video+Audio / Video+Subtitle
+• Upload Method: Telegram or GoFile
+• File Type: Video or Document
+• Custom Thumbnails: Set before merging
+• Rename: Custom or default naming
 
-**💡 Tips:**
-• Use GoFile for large files
-• Set thumbnails before merging
-• Check logs if issues occur"""
+**🔧 ADVANCED FEATURES:**
+• Extract audio/video streams
+• Add subtitles to videos
+• Merge audio tracks
+• Custom file naming
+• Metadata preservation
+
+**💡 PRO TIPS:**
+• Use GoFile for files larger than 2GB
+• Set custom thumbnail for better presentation
+• Use Document mode for highest quality
+• Check queue before merging
+• Clear queue if you want to start over
+
+**🆘 TROUBLESHOOTING:**
+• If merge fails, check file formats
+• For large files, use GoFile upload
+• Contact owner if persistent issues"""
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("⚙️ Settings", callback_data="settings")],
@@ -388,28 +482,35 @@ async def show_help_menu(cb: CallbackQuery):
 
 async def show_about_menu(cb: CallbackQuery):
     """Show about menu"""
-    about_text = """ℹ️ **ABOUT MERGE-BOT**
+    about_text = """ℹ️ **ABOUT VIDEO TOOLS BOT**
 
-🤖 **Version:** 2.0 Enhanced
-⚡ **Features:** 4GB Support & GoFile
+🤖 **Version:** Professional Edition v3.0
+⚡ **Powered by:** FFmpeg & Pyrogram
 
-**🆕 What's New:**
+**🆕 Features:**
+✅ Video merging (multiple files)
+✅ Video + Audio merging
+✅ Video + Subtitle merging
+✅ Stream extraction
+✅ Professional encoding
 ✅ GoFile integration (unlimited size)
-✅ Enhanced UI/UX
-✅ Better error handling
-✅ Process management fixes
-✅ Improved stability
+✅ Custom thumbnails
+✅ MongoDB user settings
 
-**🔥 Core Features:**
-🎬 Merge up to 10 videos
-🎵 Add audio tracks
-📝 Add subtitles
-🖼️ Custom thumbnails
-📤 Multiple upload options
-🔗 GoFile support
+**📋 Supported Formats:**
+🎬 Videos: MP4, MKV, WebM, TS, MOV
+🎵 Audio: AAC, AC3, MP3, M4A
+📝 Subtitles: SRT, ASS, MKS
 
-**👨‍💻 Enhanced by AI Assistant**
-**🏠 Original by @yashoswalyo**"""
+**⚙️ Advanced Options:**
+• Upload to Telegram (2GB limit)
+• Upload to GoFile (unlimited)
+• Custom file naming
+• Metadata editing
+• Quality presets
+
+**👨‍💻 Professional Bot Service**
+**🔧 Technical Support Available**"""
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("👨‍💻 Developer", url="https://t.me/yashoswalyo")],
@@ -433,10 +534,15 @@ async def show_start_menu(c: Client, cb: CallbackQuery):
     ])
 
     await cb.message.edit_text(
-        f"👋 **Hi {cb.from_user.first_name}!**\n\n"
-        f"🤖 **I Am Video Tool Bot** 🔥\n"
-        f"📹 I Can Help You To Manage Your Videos Easily 😊\n\n"
-        f"**Like:** Merge, Extract, Rename, Encode Etc...\n\n"
-        f"🚀 **Enhanced with GoFile Integration**",
+        f"👋 **Welcome Back {cb.from_user.first_name}!**\n\n"
+        f"🤖 **Professional Video Tools Bot**\n"
+        f"📹 Your complete video processing solution\n\n"
+        f"**Available Tools:**\n"
+        f"• Video Merging & Combining\n"
+        f"• Audio/Subtitle Integration\n"
+        f"• Stream Extraction\n"
+        f"• Quality Encoding\n"
+        f"• Professional Processing\n\n"
+        f"💡 **Quick Actions:** Settings | About | Help",
         reply_markup=keyboard
     )

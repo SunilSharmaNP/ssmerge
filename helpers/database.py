@@ -101,7 +101,8 @@ def getUserMergeSettings(uid: int):
         return None
 
 
-def setUserMergeSettings(uid: int, name: str, mode, edit_metadata, banned, allowed, thumbnail):
+def setUserMergeSettings(uid: int, name: str, mode, edit_metadata, banned, allowed, thumbnail, upload_as_doc=False, upload_to_drive=False):
+    """Enhanced function with complete preference storage"""
     modes = Config.MODES
     if uid:
         try:
@@ -112,13 +113,15 @@ def setUserMergeSettings(uid: int, name: str, mode, edit_metadata, banned, allow
                     "user_settings": {
                         "merge_mode": mode,
                         "edit_metadata": edit_metadata,
+                        "upload_as_doc": upload_as_doc,
+                        "upload_to_drive": upload_to_drive,
                     },
                     "isAllowed": allowed,
                     "isBanned": banned,
                     "thumbnail": thumbnail,
                 }
             )
-            LOGGER.info("User {} Mode updated to {}".format(uid, modes[mode - 1]))
+            LOGGER.info("User {} settings saved - Mode: {}".format(uid, modes[mode - 1] if mode <= len(modes) else "Unknown"))
         except Exception:
             Database.mergebot.mergeSettings.replace_one(
                 filter={"_id": uid},
@@ -127,13 +130,15 @@ def setUserMergeSettings(uid: int, name: str, mode, edit_metadata, banned, allow
                     "user_settings": {
                         "merge_mode": mode,
                         "edit_metadata": edit_metadata,
+                        "upload_as_doc": upload_as_doc,
+                        "upload_to_drive": upload_to_drive,
                     },
                     "isAllowed": allowed,
                     "isBanned": banned,
                     "thumbnail": thumbnail,
                 },
             )
-            LOGGER.info("User {} Mode updated to {}".format(uid, modes[mode - 1]))
+            LOGGER.info("User {} settings updated - Mode: {}".format(uid, modes[mode - 1] if mode <= len(modes) else "Unknown"))
         MERGE_MODE[uid] = mode
     # elif mode == 2:
     #     try:

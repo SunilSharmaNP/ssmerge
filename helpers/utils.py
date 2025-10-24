@@ -39,7 +39,7 @@ def get_readable_time(seconds: float) -> str:
     return result
 
 class UserSettings(object):
-    """FIXED UserSettings class with proper database persistence"""
+    """Enhanced UserSettings class with complete database persistence for all preferences"""
     
     def __init__(self, uid: int, name: str):
         self.user_id: int = uid
@@ -49,6 +49,8 @@ class UserSettings(object):
         self.allowed: bool = False
         self.thumbnail = None
         self.banned: bool = False
+        self.upload_as_doc: bool = False  # NEW: Upload mode preference
+        self.upload_to_drive: bool = False  # NEW: GoFile upload preference
         self.get()
 
     def get(self):
@@ -60,6 +62,8 @@ class UserSettings(object):
                 user_settings = cur.get("user_settings", {})
                 self.merge_mode = user_settings.get("merge_mode", 1)
                 self.edit_metadata = user_settings.get("edit_metadata", False)
+                self.upload_as_doc = user_settings.get("upload_as_doc", False)  # NEW
+                self.upload_to_drive = user_settings.get("upload_to_drive", False)  # NEW
                 self.allowed = cur.get("isAllowed", False)
                 self.thumbnail = cur.get("thumbnail", None)
                 self.banned = cur.get("isBanned", False)
@@ -70,6 +74,8 @@ class UserSettings(object):
                     "user_settings": {
                         "merge_mode": self.merge_mode,
                         "edit_metadata": self.edit_metadata,
+                        "upload_as_doc": self.upload_as_doc,
+                        "upload_to_drive": self.upload_to_drive,
                     },
                     "isAllowed": self.allowed,
                     "isBanned": self.banned,
@@ -84,7 +90,7 @@ class UserSettings(object):
             return self.set()
 
     def set(self):
-        """Save user settings to database"""
+        """Save all user settings to database"""
         try:
             setUserMergeSettings(
                 uid=self.user_id,
@@ -94,6 +100,8 @@ class UserSettings(object):
                 banned=self.banned,
                 allowed=self.allowed,
                 thumbnail=self.thumbnail,
+                upload_as_doc=self.upload_as_doc,  # NEW
+                upload_to_drive=self.upload_to_drive,  # NEW
             )
             return self.get()
         except Exception as e:
