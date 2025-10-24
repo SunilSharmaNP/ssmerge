@@ -43,29 +43,29 @@ class Config(object):
 
     # Core Configuration  
     try:
-        API_HASH = get_env_var.__func__("API_HASH")
-        BOT_TOKEN = get_env_var.__func__("BOT_TOKEN") 
-        TELEGRAM_API = int(get_env_var.__func__("TELEGRAM_API"))
-        OWNER = int(get_env_var.__func__("OWNER"))
-        OWNER_USERNAME = get_env_var.__func__("OWNER_USERNAME")
-        DATABASE_URL = get_env_var.__func__("DATABASE_URL")
+        API_HASH = get_env_var("API_HASH")
+        BOT_TOKEN = get_env_var("BOT_TOKEN") 
+        TELEGRAM_API = int(get_env_var("TELEGRAM_API"))
+        OWNER = int(get_env_var("OWNER"))
+        OWNER_USERNAME = get_env_var("OWNER_USERNAME")
+        DATABASE_URL = get_env_var("DATABASE_URL")
     except ValueError as e:
         raise ConfigError(f"❌ Invalid configuration value: {e}")
     except Exception as e:
         raise ConfigError(f"❌ Configuration error: {e}")
 
     # Optional Configuration with defaults
-    PASSWORD = get_env_var.__func__("PASSWORD", required=False, default="mergebot123")
-    LOGCHANNEL = get_env_var.__func__("LOGCHANNEL", required=False)
-    GDRIVE_FOLDER_ID = get_env_var.__func__("GDRIVE_FOLDER_ID", required=False, default="root")
-    USER_SESSION_STRING = get_env_var.__func__("USER_SESSION_STRING", required=False)
+    PASSWORD = get_env_var("PASSWORD", required=False, default="mergebot123")
+    LOGCHANNEL = get_env_var("LOGCHANNEL", required=False)
+    GDRIVE_FOLDER_ID = get_env_var("GDRIVE_FOLDER_ID", required=False, default="root")
+    USER_SESSION_STRING = get_env_var("USER_SESSION_STRING", required=False)
 
     # GoFile Configuration
-    GOFILE_TOKEN = get_env_var.__func__("GOFILE_TOKEN", required=False)
+    GOFILE_TOKEN = get_env_var("GOFILE_TOKEN", required=False)
 
     # Bot Settings
-    MAX_CONCURRENT_USERS = int(get_env_var.__func__("MAX_CONCURRENT_USERS", required=False, default="5"))
-    MAX_FILE_SIZE = int(get_env_var.__func__("MAX_FILE_SIZE", required=False, default="2147483648"))
+    MAX_CONCURRENT_USERS = int(get_env_var("MAX_CONCURRENT_USERS", required=False, default="5"))
+    MAX_FILE_SIZE = int(get_env_var("MAX_FILE_SIZE", required=False, default="2147483648"))
 
     # Runtime Variables
     IS_PREMIUM = False

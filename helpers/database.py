@@ -166,9 +166,28 @@ def setUserMergeSettings(uid: int, name: str, mode, edit_metadata, banned, allow
 
 
 def enableMetadataToggle(uid: int, value: bool):
-
-    1
+    """Enable metadata editing for user"""
+    try:
+        result = Database.mergebot.mergeSettings.update_one(
+            {"_id": uid},
+            {"$set": {"user_settings.edit_metadata": value}}
+        )
+        LOGGER.info(f"Metadata toggle enabled for user {uid}: {value}")
+        return result.modified_count > 0
+    except Exception as e:
+        LOGGER.error(f"Error enabling metadata toggle: {e}")
+        return False
 
 
 def disableMetadataToggle(uid: int, value: bool):
-    1
+    """Disable metadata editing for user"""
+    try:
+        result = Database.mergebot.mergeSettings.update_one(
+            {"_id": uid},
+            {"$set": {"user_settings.edit_metadata": value}}
+        )
+        LOGGER.info(f"Metadata toggle disabled for user {uid}: {value}")
+        return result.modified_count > 0
+    except Exception as e:
+        LOGGER.error(f"Error disabling metadata toggle: {e}")
+        return False
