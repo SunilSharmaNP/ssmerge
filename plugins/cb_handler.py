@@ -167,7 +167,7 @@ async def handle_cancel(cb: CallbackQuery, user_id: int):
             del UPLOAD_TO_DRIVE[str(user_id)]
 
         # Delete download directory
-        await delete_all(root=f"downloads/{str(user_id)}")
+        delete_all(root=f"downloads/{str(user_id)}")
 
         await cb.message.edit_text(
             "🗑️ **Operation Cancelled**\n\n"

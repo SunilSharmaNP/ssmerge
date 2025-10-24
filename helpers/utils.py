@@ -19,8 +19,9 @@ def get_readable_file_size(size_in_bytes) -> str:
     except IndexError:
         return "File too large"
 
-def get_readable_time(seconds: int) -> str:
+def get_readable_time(seconds: float) -> str:
     result = ""
+    seconds = int(seconds)
     (days, remainder) = divmod(seconds, 86400)
     days = int(days)
     if days != 0:

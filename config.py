@@ -45,8 +45,8 @@ class Config(object):
     try:
         API_HASH = get_env_var("API_HASH")
         BOT_TOKEN = get_env_var("BOT_TOKEN") 
-        TELEGRAM_API = int(get_env_var("TELEGRAM_API"))
-        OWNER = int(get_env_var("OWNER"))
+        TELEGRAM_API = int(get_env_var("TELEGRAM_API") or "0")
+        OWNER = int(get_env_var("OWNER") or "0")
         OWNER_USERNAME = get_env_var("OWNER_USERNAME")
         DATABASE_URL = get_env_var("DATABASE_URL")
     except ValueError as e:
@@ -64,8 +64,8 @@ class Config(object):
     GOFILE_TOKEN = get_env_var("GOFILE_TOKEN", required=False)
 
     # Bot Settings
-    MAX_CONCURRENT_USERS = int(get_env_var("MAX_CONCURRENT_USERS", required=False, default="5"))
-    MAX_FILE_SIZE = int(get_env_var("MAX_FILE_SIZE", required=False, default="2147483648"))
+    MAX_CONCURRENT_USERS = int(get_env_var("MAX_CONCURRENT_USERS", required=False, default="5") or "5")
+    MAX_FILE_SIZE = int(get_env_var("MAX_FILE_SIZE", required=False, default="2147483648") or "2147483648")
 
     # Runtime Variables
     IS_PREMIUM = False
